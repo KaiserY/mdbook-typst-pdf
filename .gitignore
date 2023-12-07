@@ -17,3 +17,13 @@ Cargo.lock
 # Added by cargo
 
 /target
+
+
+mdbook-src
+listings
+
+book.toml
+
+.vscode
+
+book

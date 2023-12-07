@@ -1,13 +1,8 @@
-// Acknowledgement:
-// Closely modelled after rustup's [`DownloadTracker`].
-// https://github.com/rust-lang/rustup/blob/master/src/cli/download_tracker.rs
-
+use once_cell::sync::Lazy;
 use std::collections::VecDeque;
 use std::io::{self, ErrorKind, Read, Stderr, Write};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-
-use once_cell::sync::Lazy;
 use ureq::Response;
 
 /// Keep track of this many download speed samples.

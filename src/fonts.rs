@@ -1,34 +1,8 @@
+use fontdb::{Database, Source};
 use std::cell::OnceCell;
 use std::fs;
 use std::path::PathBuf;
-
-use fontdb::{Database, Source};
-use typst::diag::StrResult;
-use typst::text::{Font, FontBook, FontInfo, FontVariant};
-
-use crate::args::FontsCommand;
-
-/// Execute a font listing command.
-pub fn fonts(command: &FontsCommand) -> StrResult<()> {
-  let mut searcher = FontSearcher::new();
-  searcher.search(&command.font_paths);
-
-  for (name, infos) in searcher.book.families() {
-    println!("{name}");
-    if command.variants {
-      for info in infos {
-        let FontVariant {
-          style,
-          weight,
-          stretch,
-        } = info.variant;
-        println!("- Style: {style:?}, Weight: {weight:?}, Stretch: {stretch:?}");
-      }
-    }
-  }
-
-  Ok(())
-}
+use typst::text::{Font, FontBook, FontInfo};
 
 /// Searches for fonts.
 pub struct FontSearcher {

@@ -1,49 +1,68 @@
-mod args;
-mod compile;
 mod download;
+mod export;
 mod fonts;
 mod package;
-mod tracing;
-mod watch;
 mod world;
 
-use clap::Parser;
 use codespan_reporting::term::{self, termcolor};
+use export::ExportArgs;
+use mdbook::book::Chapter;
+use mdbook::renderer::RenderContext;
+use mdbook::BookItem;
 use once_cell::sync::Lazy;
 use std::cell::Cell;
 use std::io::{self, IsTerminal, Write};
+use std::path::PathBuf;
 use std::process::ExitCode;
 use termcolor::{ColorChoice, WriteColor};
 
-use crate::args::{CliArguments, Command};
+pub struct CliArguments {
+  pub cert: Option<PathBuf>,
+}
 
 thread_local! {
   /// The CLI's exit code.
   static EXIT: Cell<ExitCode> = Cell::new(ExitCode::SUCCESS);
 }
 
-static ARGS: Lazy<CliArguments> = Lazy::new(CliArguments::parse);
+static ARGS: Lazy<CliArguments> = Lazy::new(|| CliArguments { cert: None });
 
-fn main() -> ExitCode {
-  let _guard = match crate::tracing::setup_tracing(&ARGS) {
-    Ok(guard) => guard,
-    Err(err) => {
-      eprintln!("failed to initialize tracing ({err})");
-      None
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+  tracing_subscriber::fmt()
+    .without_time()
+    .with_max_level(tracing::Level::INFO)
+    .init();
+
+  let mut stdin = io::stdin();
+
+  let ctx = RenderContext::from_json(&mut stdin)?;
+
+  for item in ctx.book.iter() {
+    if let BookItem::Chapter(ref ch) = *item {
+      let num_words = count_words(ch);
+      tracing::info!("{}: {}", ch.name, num_words);
     }
+  }
+
+  let args = ExportArgs {
+    input: PathBuf::from("test.typ"),
+    output: PathBuf::from("test.pdf"),
+    root: None,
+    font_paths: vec![],
   };
 
-  let res = match &ARGS.command {
-    Command::Compile(command) => crate::compile::compile(command.clone()),
-    _ => Ok(()),
-  };
+  let res = crate::export::export_pdf(args);
 
   if let Err(msg) = res {
     set_failed();
     print_error(&msg).expect("failed to print error");
   }
 
-  EXIT.with(|cell| cell.get())
+  Ok(())
+}
+
+fn count_words(ch: &Chapter) -> usize {
+  ch.content.split_whitespace().count()
 }
 
 fn color_stream() -> termcolor::StandardStream {

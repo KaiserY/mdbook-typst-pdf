@@ -1,9 +1,8 @@
+use codespan_reporting::term::{self, termcolor};
+use ecow::eco_format;
 use std::fs;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
-
-use codespan_reporting::term::{self, termcolor};
-use ecow::eco_format;
 use termcolor::WriteColor;
 use typst::diag::{PackageError, PackageResult};
 use typst::syntax::PackageSpec;

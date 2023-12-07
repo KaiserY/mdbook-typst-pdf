@@ -1,20 +1,17 @@
+use chrono::{DateTime, Datelike, Local};
+use comemo::Prehashed;
+use ecow::eco_format;
 use std::cell::{Cell, OnceCell, RefCell, RefMut};
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
-
-use chrono::{DateTime, Datelike, Local};
-use comemo::Prehashed;
-use ecow::eco_format;
 use typst::diag::{FileError, FileResult, StrResult};
 use typst::foundations::{Bytes, Datetime};
-use typst::layout::Frame;
 use typst::syntax::{FileId, Source, VirtualPath};
 use typst::text::{Font, FontBook};
-use typst::util::hash128;
 use typst::{Library, World};
 
-use crate::args::SharedArgs;
+use crate::export::ExportArgs;
 use crate::fonts::{FontSearcher, FontSlot};
 use crate::package::prepare_package;
 
@@ -39,28 +36,25 @@ pub struct SystemWorld {
   /// The current datetime if requested. This is stored here to ensure it is
   /// always the same within one compilation. Reset between compilations.
   now: OnceCell<DateTime<Local>>,
-  /// The export cache, used for caching output files in `typst watch`
-  /// sessions.
-  export_cache: ExportCache,
 }
 
 impl SystemWorld {
   /// Create a new system world.
-  pub fn new(command: &SharedArgs) -> StrResult<Self> {
+  pub fn new(args: &ExportArgs) -> StrResult<Self> {
     let mut searcher = FontSearcher::new();
-    searcher.search(&command.font_paths);
+    searcher.search(&args.font_paths);
 
     // Resolve the system-global input path.
-    let input = command.input.canonicalize().map_err(|_| {
+    let input = args.input.canonicalize().map_err(|_| {
       eco_format!(
         "input file not found (searched at {})",
-        command.input.display()
+        args.input.display()
       )
     })?;
 
     // Resolve the system-global root directory.
     let root = {
-      let path = command
+      let path = args
         .root
         .as_deref()
         .or_else(|| input.parent())
@@ -84,7 +78,6 @@ impl SystemWorld {
       fonts: searcher.fonts,
       slots: RefCell::default(),
       now: OnceCell::new(),
-      export_cache: ExportCache::new(),
     })
   }
 
@@ -103,24 +96,6 @@ impl SystemWorld {
     self.workdir.as_deref().unwrap_or(Path::new("."))
   }
 
-  /// Return all paths the last compilation depended on.
-  pub fn dependencies(&mut self) -> impl Iterator<Item = PathBuf> + '_ {
-    self
-      .slots
-      .get_mut()
-      .values()
-      .filter(|slot| slot.accessed())
-      .filter_map(|slot| slot.system_path(&self.root).ok())
-  }
-
-  /// Reset the compilation state in preparation of a new compilation.
-  pub fn reset(&mut self) {
-    for slot in self.slots.get_mut().values_mut() {
-      slot.reset();
-    }
-    self.now.take();
-  }
-
   /// Return the canonical path to the input file.
   pub fn input(&self) -> &PathBuf {
     &self.input
@@ -132,11 +107,6 @@ impl SystemWorld {
     self
       .source(id)
       .expect("file id does not point to any source file")
-  }
-
-  /// Gets access to the export cache.
-  pub fn export_cache(&mut self) -> &mut ExportCache {
-    &mut self.export_cache
   }
 }
 
@@ -213,18 +183,6 @@ impl FileSlot {
     }
   }
 
-  /// Whether the file was accessed in the ongoing compilation.
-  fn accessed(&self) -> bool {
-    self.source.accessed() || self.file.accessed()
-  }
-
-  /// Marks the file as not yet accessed in preparation of the next
-  /// compilation.
-  fn reset(&self) {
-    self.source.reset();
-    self.file.reset();
-  }
-
   /// Retrieve the source for this file.
   fn source(&self, root: &Path) -> FileResult<Source> {
     self.source.get_or_init(
@@ -285,17 +243,6 @@ impl<T: Clone> SlotCell<T> {
     }
   }
 
-  /// Whether the cell was accessed in the ongoing compilation.
-  fn accessed(&self) -> bool {
-    self.accessed.get()
-  }
-
-  /// Marks the cell as not yet accessed in preparation of the next
-  /// compilation.
-  fn reset(&self) {
-    self.accessed.set(false);
-  }
-
   /// Gets the contents of the cell or initialize them.
   fn get_or_init(
     &self,
@@ -327,40 +274,6 @@ impl<T: Clone> SlotCell<T> {
     *borrow = Some(value.clone());
 
     value
-  }
-}
-
-/// Caches exported files so that we can avoid re-exporting them if they haven't
-/// changed.
-///
-/// This is done by having a list of size `files.len()` that contains the hashes
-/// of the last rendered frame in each file. If a new frame is inserted, this
-/// will invalidate the rest of the cache, this is deliberate as to decrease the
-/// complexity and memory usage of such a cache.
-pub struct ExportCache {
-  /// The hashes of last compilation's frames.
-  pub cache: Vec<u128>,
-}
-
-impl ExportCache {
-  /// Creates a new export cache.
-  pub fn new() -> Self {
-    Self {
-      cache: Vec::with_capacity(32),
-    }
-  }
-
-  /// Returns true if the entry is cached and appends the new hash to the
-  /// cache (for the next compilation).
-  pub fn is_cached(&mut self, i: usize, frame: &Frame) -> bool {
-    let hash = hash128(frame);
-
-    if i >= self.cache.len() {
-      self.cache.push(hash);
-      return false;
-    }
-
-    std::mem::replace(&mut self.cache[i], hash) == hash
   }
 }
 
