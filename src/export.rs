@@ -12,8 +12,8 @@ use typst::foundations::Datetime;
 use typst::syntax::{FileId, Source, Span};
 use typst::{World, WorldExt};
 
+use crate::color_stream;
 use crate::world::SystemWorld;
-use crate::{color_stream, set_failed};
 
 type CodespanResult<T> = Result<T, CodespanError>;
 type CodespanError = codespan_reporting::files::Error;
@@ -35,7 +35,6 @@ pub fn export_pdf(args: ExportArgs) -> StrResult<()> {
 
   // Check if main file can be read and opened.
   if let Err(errors) = world.source(world.main()).at(Span::detached()) {
-    set_failed();
     tracing::info!("Failed to open and decode main file");
 
     print_diagnostics(&world, &errors, &[])
@@ -64,7 +63,6 @@ pub fn export_pdf(args: ExportArgs) -> StrResult<()> {
 
     // Print diagnostics.
     Err(errors) => {
-      set_failed();
       tracing::info!("Compilation failed");
 
       print_diagnostics(&world, &errors, &warnings)

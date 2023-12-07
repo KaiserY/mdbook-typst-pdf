@@ -1,33 +1,10 @@
-use once_cell::sync::Lazy;
 use std::collections::VecDeque;
 use std::io::{self, ErrorKind, Read, Stderr, Write};
-use std::sync::Arc;
 use std::time::{Duration, Instant};
 use ureq::Response;
 
 /// Keep track of this many download speed samples.
 const SPEED_SAMPLES: usize = 5;
-
-/// Lazily loads a custom CA certificate if present, but if there's an error
-/// loading certificate, it just uses the default configuration.
-static TLS_CONFIG: Lazy<Option<Arc<rustls::ClientConfig>>> = Lazy::new(|| {
-  crate::ARGS
-    .cert
-    .as_ref()
-    .map(|path| {
-      let file = std::fs::OpenOptions::new().read(true).open(path)?;
-      let mut buffer = std::io::BufReader::new(file);
-      let certs = rustls_pemfile::certs(&mut buffer)?;
-      let mut store = rustls::RootCertStore::empty();
-      store.add_parsable_certificates(&certs);
-      let config = rustls::ClientConfig::builder()
-        .with_safe_defaults()
-        .with_root_certificates(store)
-        .with_no_client_auth();
-      Ok::<_, std::io::Error>(Arc::new(config))
-    })
-    .and_then(|x| x.ok())
-});
 
 /// Download binary data and display its progress.
 #[allow(clippy::result_large_err)]
@@ -48,11 +25,6 @@ pub fn download(url: &str) -> Result<ureq::Response, ureq::Error> {
     .and_then(|url| ureq::Proxy::new(url).ok())
   {
     builder = builder.proxy(proxy);
-  }
-
-  // Apply a custom CA certificate if present.
-  if let Some(config) = &*TLS_CONFIG {
-    builder = builder.tls_config(config.clone());
   }
 
   let agent = builder.build();
