@@ -32,3 +32,6 @@ tar = "0.4"
 pathdiff = "0.2"
 tempfile = "3.8.1"
 mdbook = "0.4.36"
+serde = { version = "1.0.193", features = ["derive"] }
+anyhow = "1.0.75"
+pulldown-cmark = "0.9.3"
