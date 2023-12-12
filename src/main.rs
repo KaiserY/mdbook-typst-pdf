@@ -100,12 +100,12 @@ fn write_file(data: &str, filename: PathBuf) {
   let display = filename.display();
 
   let mut file = match File::create(&filename) {
-    Err(why) => panic!("Couldn't create {}: {}", display, why.to_string()),
+    Err(why) => panic!("Couldn't create {}: {}", display, why),
     Ok(file) => file,
   };
 
   if let Err(why) = file.write_all(data.as_bytes()) {
-    panic!("Couldn't write to {}: {}", display, why.to_string())
+    panic!("Couldn't write to {}: {}", display, why)
   }
 }
 
