@@ -138,18 +138,39 @@ fn convert_content(
       Event::Start(Tag::CodeBlock(ref lang)) => {
         event_stack.push(EventType::CodeBlock);
         match lang {
-          CodeBlockKind::Indented => writeln!(content_str, "```")?,
-          CodeBlockKind::Fenced(lang) => writeln!(content_str, "```{}", lang)?,
+          CodeBlockKind::Indented => writeln!(content_str, "````")?,
+          CodeBlockKind::Fenced(lang) => {
+            let langs: Vec<&str> = lang.split(',').collect();
+
+            if !langs.is_empty() {
+              writeln!(content_str, "````{}", langs[0])?
+            } else {
+              writeln!(content_str, "````")?
+            }
+          }
         }
       }
       Event::End(Tag::CodeBlock(_)) => {
         event_stack.pop();
-        writeln!(content_str, "```")?
+        writeln!(content_str, "````")?
       }
-      Event::Code(t) => write!(content_str, "`{}`", t)?,
+      Event::Code(t) => write!(content_str, "```` {} ````", t)?,
       Event::Text(t) => match event_stack.last() {
         Some(EventType::CodeBlock) => write!(content_str, "{}", t)?,
-        _ => write!(content_str, "{}", t.replace('#', "\\#").replace('$', "\\$"))?,
+        _ => {
+          let mut transformed_text = String::with_capacity(t.len());
+          for ch in t.chars() {
+            match ch {
+              '#' | '$' | '`' | '*' | '_' | '<' | '>' | '@' => {
+                transformed_text.push('\\');
+                transformed_text.push(ch);
+              }
+              _ => transformed_text.push(ch),
+            }
+          }
+
+          write!(content_str, "{}", transformed_text)?
+        }
       },
       Event::SoftBreak => writeln!(content_str, " \\")?,
       _ => (),

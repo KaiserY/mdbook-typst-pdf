@@ -1,3 +1,6 @@
+#set text(lang: "zh")
+#set text(cjk-latin-spacing: auto)
+
 #show raw.where(block: true): block.with(
   fill: luma(240),
   inset: 10pt,
@@ -25,7 +28,6 @@
 ])
 
 #pagebreak()
-#set text(lang: "zh")
 #outline(depth: 2, indent: 1em)
 #pagebreak()
 
