@@ -1,6 +1,6 @@
 #set text(
   lang: "zh",
-  font: ("SimHei"),
+  font: ("WenQuanYi MicroHei"),
 )
 
 #show link: underline
