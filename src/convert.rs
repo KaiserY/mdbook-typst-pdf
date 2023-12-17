@@ -252,6 +252,18 @@ fn convert_content(
       }
       Event::Code(t) => write!(content_str, "```` {} ````", t)?,
       Event::Html(t) => {
+        match t.to_string().as_str() {
+          "<sup>" => {
+            write!(content_str, "#super[")?;
+            continue;
+          }
+          "</sup>" => {
+            write!(content_str, "]")?;
+            continue;
+          }
+          _ => (),
+        }
+
         let dom = parse_document(RcDom::default(), Default::default())
           .from_utf8()
           .read_from(&mut t.as_bytes())?;
