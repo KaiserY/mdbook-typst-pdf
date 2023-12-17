@@ -1,6 +1,12 @@
 #set text(
   lang: "zh",
-  font: ("WenQuanYi MicroHei"),
+  font: (
+    "Noto Sans",
+    "Noto Sans SC",
+    "Noto Sans Arabic",
+    "Noto Sans Hebrew",
+    "Noto Sans Devanagari,
+  ),
 )
 
 #show link: underline
