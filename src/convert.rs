@@ -61,7 +61,7 @@ fn convert_book_item(ctx: &RenderContext, item: &BookItem) -> Result<String, any
       Some(number) => {
         writeln!(
           book_item_str,
-          "{} {} {} <{}.html>)",
+          "{} {} {} <{}.html>",
           "=".repeat(number.len()),
           number,
           ch.name,
@@ -70,7 +70,7 @@ fn convert_book_item(ctx: &RenderContext, item: &BookItem) -> Result<String, any
         number.len()
       }
       None => {
-        writeln!(book_item_str, "= {}", ch.name)?;
+        writeln!(book_item_str, "= {} <{}.html>", ch.name, label)?;
         1
       }
     };
