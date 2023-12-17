@@ -16,19 +16,22 @@ use std::path::Path;
 use std::path::PathBuf;
 use tempfile::NamedTempFile;
 use termcolor::{ColorChoice, WriteColor};
+use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 #[derive(Debug, Default, Serialize, Deserialize)]
 #[serde(default, rename_all = "kebab-case")]
 pub struct Config {
-  pub typst: bool,
   pub pdf: bool,
   pub custom_template: Option<String>,
 }
 
 fn main() -> Result<(), anyhow::Error> {
-  tracing_subscriber::fmt()
-    .without_time()
-    .with_max_level(tracing::Level::INFO)
+  tracing_subscriber::registry()
+    .with(
+      tracing_subscriber::EnvFilter::try_from_default_env()
+        .unwrap_or_else(|_| "mdbook_typst_pdf=info,typst=error".into()),
+    )
+    .with(tracing_subscriber::fmt::layer())
     .init();
 
   let mut stdin = io::stdin();
@@ -50,18 +53,17 @@ fn main() -> Result<(), anyhow::Error> {
 
   let typst_str = convert::convert_typst(&ctx, &template_str)?;
 
-  if cfg.typst {
-    let filename = output_filename(&ctx.destination, &ctx.config, "typ");
-    write_file(&typst_str, filename);
-  }
+  let typst_filename = output_filename(&ctx.destination, &ctx.config, "typ");
 
   if cfg.pdf {
     let mut tmpfile = NamedTempFile::new()?;
     tmpfile.write_all(typst_str.as_bytes())?;
     tmpfile.flush()?;
 
+    write_file(&typst_str, &typst_filename);
+
     let args = ExportArgs {
-      input: PathBuf::from(tmpfile.path()),
+      input: typst_filename,
       output: output_filename(&ctx.destination, &ctx.config, "pdf"),
       root: None,
       font_paths: vec![],
@@ -96,10 +98,10 @@ fn print_error(msg: &str) -> io::Result<()> {
   writeln!(w, ": {msg}.")
 }
 
-fn write_file(data: &str, filename: PathBuf) {
+fn write_file(data: &str, filename: &PathBuf) {
   let display = filename.display();
 
-  let mut file = match File::create(&filename) {
+  let mut file = match File::create(filename) {
     Err(why) => panic!("Couldn't create {}: {}", display, why),
     Ok(file) => file,
   };

@@ -1,5 +1,9 @@
-#set text(lang: "zh")
-#set text(cjk-latin-spacing: auto)
+#set text(
+  lang: "zh",
+  font: ("SimHei"),
+)
+
+#show link: underline
 
 #show raw.where(block: true): block.with(
   fill: luma(240),
@@ -7,10 +11,16 @@
   radius: 4pt,
 )
 
+#show quote.where(block: true): block.with(
+  fill: rgb("#f1f6f9"),
+  inset: 10pt,
+  radius: 4pt,
+)
+
 #set page(
   header: locate(loc => {
     if counter(page).at(loc).first() > 1 [
-      _Title_
+      MDBOOK_TYPST_PDF_TITLE
     ]
   }),
   footer: locate(loc => {
@@ -24,7 +34,7 @@
 )
 
 #align(center, text(17pt)[
-  *Title*
+  *MDBOOK_TYPST_PDF_TITLE*
 ])
 
 #pagebreak()

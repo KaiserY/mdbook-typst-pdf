@@ -15,7 +15,7 @@ chrono = { version = "0.4.31", default-features = false, features = [
 ] }
 ecow = "0.2.0"
 tracing = "0.1.40"
-tracing-subscriber = "0.3.18"
+tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 same-file = "1.0.6"
 comemo = "0.3.1"
 fontdb = { version = "0.16", default-features = false, features = [
@@ -25,7 +25,6 @@ fontdb = { version = "0.16", default-features = false, features = [
 once_cell = "1"
 ureq = "2"
 env_proxy = "0.4"
-rustls = "0.22.1"
 dirs = "5"
 flate2 = "1"
 tar = "0.4"
@@ -35,3 +34,5 @@ mdbook = "0.4.36"
 serde = { version = "1.0.193", features = ["derive"] }
 anyhow = "1.0.75"
 pulldown-cmark = "0.9.3"
+markup5ever_rcdom = "0.2.0"
+html5ever = "0.26.0"
