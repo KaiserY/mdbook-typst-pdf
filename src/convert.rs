@@ -2,11 +2,14 @@ use anyhow::anyhow;
 use html5ever::parse_document;
 use html5ever::tendril::TendrilSink;
 use markup5ever_rcdom::{NodeData, RcDom};
+use mdbook::book::SectionNumber;
 use mdbook::renderer::RenderContext;
 use mdbook::BookItem;
-use pulldown_cmark::{Alignment, CodeBlockKind, Event, HeadingLevel, Options, Parser, Tag};
+use pulldown_cmark::{Alignment, CodeBlockKind, Event, Options, Parser, Tag};
 use std::fmt::Write;
 use std::fs;
+
+use crate::Config;
 
 #[derive(Debug)]
 pub enum EventType {
@@ -17,7 +20,11 @@ pub enum EventType {
   Image,
 }
 
-pub fn convert_typst(ctx: &RenderContext, template: &str) -> Result<String, anyhow::Error> {
+pub fn convert_typst(
+  ctx: &RenderContext,
+  cfg: &Config,
+  template: &str,
+) -> Result<String, anyhow::Error> {
   let title = ctx
     .config
     .book
@@ -30,7 +37,7 @@ pub fn convert_typst(ctx: &RenderContext, template: &str) -> Result<String, anyh
   let mut typst_str = String::new();
 
   for item in ctx.book.iter() {
-    writeln!(typst_str, "{}", convert_book_item(ctx, item)?)?;
+    writeln!(typst_str, "{}", convert_book_item(ctx, cfg, item)?)?;
   }
 
   let placeholder = "/**** MDBOOK_TYPST_PDF_PLACEHOLDER ****/\n";
@@ -41,7 +48,11 @@ pub fn convert_typst(ctx: &RenderContext, template: &str) -> Result<String, anyh
   Ok(output_template)
 }
 
-fn convert_book_item(ctx: &RenderContext, item: &BookItem) -> Result<String, anyhow::Error> {
+fn convert_book_item(
+  ctx: &RenderContext,
+  cfg: &Config,
+  item: &BookItem,
+) -> Result<String, anyhow::Error> {
   let mut book_item_str = String::new();
 
   if let BookItem::Chapter(ref ch) = *item {
@@ -57,8 +68,8 @@ fn convert_book_item(ctx: &RenderContext, item: &BookItem) -> Result<String, any
       .and_then(|f| f.split('.').next())
       .ok_or(anyhow!("source_path not found"))?;
 
-    let number = match &ch.number {
-      Some(number) => {
+    if let Some(number) = &ch.number {
+      if cfg.section_number {
         writeln!(
           book_item_str,
           "{} {} {} <{}.html>",
@@ -67,18 +78,27 @@ fn convert_book_item(ctx: &RenderContext, item: &BookItem) -> Result<String, any
           ch.name,
           label,
         )?;
-        number.len()
+      } else {
+        writeln!(
+          book_item_str,
+          "#{{\n  show heading: none\n  heading(level: {}, outlined: true)[{}]\n}} <{}.html>",
+          number.len(),
+          ch.name,
+          label,
+        )?;
       }
-      None => {
-        writeln!(book_item_str, "= {} <{}.html>", ch.name, label)?;
-        1
-      }
-    };
+    } else {
+      writeln!(
+        book_item_str,
+        "#{{\n  show heading: none\n  heading(level: 1, outlined: true)[{}]\n}} <{}.html>",
+        ch.name, label
+      )?;
+    }
 
     writeln!(
       book_item_str,
       "{}#pagebreak(weak: true)",
-      convert_content(ctx, &ch.content, number)?
+      convert_content(ctx, cfg, &ch.content, &ch.number)?
     )?;
   }
 
@@ -87,8 +107,9 @@ fn convert_book_item(ctx: &RenderContext, item: &BookItem) -> Result<String, any
 
 fn convert_content(
   ctx: &RenderContext,
+  cfg: &Config,
   content: &str,
-  number: usize,
+  number: &Option<SectionNumber>,
 ) -> Result<String, anyhow::Error> {
   let mut content_str = String::new();
 
@@ -104,31 +125,32 @@ fn convert_content(
 
   for event in parser {
     match event {
-      Event::Start(Tag::Heading(level, _, _)) => match level {
-        HeadingLevel::H1 => write!(content_str, "/*")?,
-        HeadingLevel::H2 => {
-          if number > 1 {
-            write!(content_str, "/*")?
-          } else {
-            write!(content_str, "#heading(level:2, outlined: false)[")?
-          }
+      Event::Start(Tag::Heading(level, _, _)) => {
+        let level_usize: usize = level as usize;
+
+        if cfg.section_number && number.clone().map(|n| n.len()).unwrap_or(1) >= level_usize {
+          write!(
+            content_str,
+            "#{{\n  show heading: none\n  heading(level: {}, outlined: false)[",
+            level_usize,
+          )?;
+        } else {
+          write!(
+            content_str,
+            "#heading(level: {}, outlined: false)[",
+            level_usize,
+          )?;
         }
-        HeadingLevel::H3 => write!(content_str, "#heading(level:3, outlined: false)[")?,
-        HeadingLevel::H4 => write!(content_str, "#heading(level:4, outlined: false)[")?,
-        HeadingLevel::H5 => write!(content_str, "#heading(level:5, outlined: false)[")?,
-        HeadingLevel::H6 => write!(content_str, "#heading(level:6, outlined: false)[")?,
-      },
-      Event::End(Tag::Heading(level, _, _)) => match level {
-        HeadingLevel::H1 => writeln!(content_str, "*/")?,
-        HeadingLevel::H2 => {
-          if number > 1 {
-            writeln!(content_str, "*/")?
-          } else {
-            writeln!(content_str, "]")?
-          }
+      }
+      Event::End(Tag::Heading(level, _, _)) => {
+        let level_usize: usize = level as usize;
+
+        if cfg.section_number && number.clone().map(|n| n.len()).unwrap_or(1) >= level_usize {
+          writeln!(content_str, "]\n}}")?
+        } else {
+          writeln!(content_str, "]")?
         }
-        _ => writeln!(content_str, "]")?,
-      },
+      }
       Event::Start(Tag::Emphasis) => write!(content_str, "_")?,
       Event::End(Tag::Emphasis) => write!(content_str, "_")?,
       Event::Start(Tag::Strong) => write!(content_str, "*")?,

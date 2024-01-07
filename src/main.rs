@@ -23,6 +23,7 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 pub struct Config {
   pub pdf: bool,
   pub custom_template: Option<String>,
+  pub section_number: bool,
 }
 
 fn main() -> Result<(), anyhow::Error> {
@@ -51,7 +52,7 @@ fn main() -> Result<(), anyhow::Error> {
     include_str!("assets/template.typ").to_string()
   };
 
-  let typst_str = convert::convert_typst(&ctx, &template_str)?;
+  let typst_str = convert::convert_typst(&ctx, &cfg, &template_str)?;
 
   let typst_filename = output_filename(&ctx.destination, &ctx.config, "typ");
 
