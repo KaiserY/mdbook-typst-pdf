@@ -2,7 +2,6 @@ use anyhow::anyhow;
 use html5ever::parse_document;
 use html5ever::tendril::TendrilSink;
 use markup5ever_rcdom::{NodeData, RcDom};
-use mdbook::book::SectionNumber;
 use mdbook::renderer::RenderContext;
 use mdbook::BookItem;
 use pulldown_cmark::{Alignment, CodeBlockKind, Event, Options, Parser, Tag};
@@ -72,8 +71,8 @@ fn convert_book_item(
       if cfg.section_number {
         writeln!(
           book_item_str,
-          "{} {} {} <{}.html>",
-          "=".repeat(number.len()),
+          "#invisible-heading(level: {}, outlined: true)[#\"{} {}\"] <{}.html>",
+          number.len(),
           number,
           ch.name,
           label,
@@ -81,7 +80,7 @@ fn convert_book_item(
       } else {
         writeln!(
           book_item_str,
-          "#{{\n  show heading: none\n  heading(level: {}, outlined: true)[{}]\n}} <{}.html>",
+          "#invisible-heading(level: {}, outlined: true)[{}] <{}.html>",
           number.len(),
           ch.name,
           label,
@@ -90,27 +89,22 @@ fn convert_book_item(
     } else {
       writeln!(
         book_item_str,
-        "#{{\n  show heading: none\n  heading(level: 1, outlined: true)[{}]\n}} <{}.html>",
-        ch.name, label
+        "#invisible-heading(level: 1, outlined: true)[{}] <{}.html>",
+        ch.name, label,
       )?;
     }
 
     writeln!(
       book_item_str,
       "{}#pagebreak(weak: true)",
-      convert_content(ctx, cfg, &ch.content, &ch.number)?
+      convert_content(ctx, &ch.content)?
     )?;
   }
 
   Ok(book_item_str)
 }
 
-fn convert_content(
-  ctx: &RenderContext,
-  cfg: &Config,
-  content: &str,
-  number: &Option<SectionNumber>,
-) -> Result<String, anyhow::Error> {
+fn convert_content(ctx: &RenderContext, content: &str) -> Result<String, anyhow::Error> {
   let mut content_str = String::new();
 
   let options = Options::ENABLE_SMART_PUNCTUATION
@@ -128,29 +122,13 @@ fn convert_content(
       Event::Start(Tag::Heading(level, _, _)) => {
         let level_usize: usize = level as usize;
 
-        if cfg.section_number && number.clone().map(|n| n.len()).unwrap_or(1) >= level_usize {
-          write!(
-            content_str,
-            "#{{\n  show heading: none\n  heading(level: {}, outlined: false)[",
-            level_usize,
-          )?;
-        } else {
-          write!(
-            content_str,
-            "#heading(level: {}, outlined: false)[",
-            level_usize,
-          )?;
-        }
+        write!(
+          content_str,
+          "#heading(level: {}, outlined: false)[",
+          level_usize,
+        )?;
       }
-      Event::End(Tag::Heading(level, _, _)) => {
-        let level_usize: usize = level as usize;
-
-        if cfg.section_number && number.clone().map(|n| n.len()).unwrap_or(1) >= level_usize {
-          writeln!(content_str, "]\n}}")?
-        } else {
-          writeln!(content_str, "]")?
-        }
-      }
+      Event::End(Tag::Heading(_, _, _)) => writeln!(content_str, "]")?,
       Event::Start(Tag::Emphasis) => write!(content_str, "_")?,
       Event::End(Tag::Emphasis) => write!(content_str, "_")?,
       Event::Start(Tag::Strong) => write!(content_str, "*")?,
