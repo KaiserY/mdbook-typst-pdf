@@ -19,12 +19,14 @@
 #show link: underline
 
 #show raw.where(block: true): block.with(
+  width: 100%,
   fill: luma(240),
   inset: 10pt,
   radius: 4pt,
 )
 
 #show quote.where(block: true): block.with(
+  width: 100%,
   fill: rgb("#f1f6f9"),
   inset: 10pt,
   radius: 4pt,
