@@ -10,13 +10,14 @@ use std::fs;
 
 use crate::Config;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum EventType {
   CodeBlock,
   List,
   NumberedList,
   TableHead,
   Image,
+  Heading,
 }
 
 pub fn convert_typst(
@@ -65,7 +66,7 @@ fn convert_book_item(
       .file_name()
       .and_then(|f| f.to_str())
       .and_then(|f| f.split('.').next())
-      .ok_or(anyhow!("source_path not found"))?;
+      .ok_or(anyhow!("label not found"))?;
 
     if let Some(number) = &ch.number {
       if cfg.section_number {
@@ -97,15 +98,21 @@ fn convert_book_item(
     writeln!(
       book_item_str,
       "{}#pagebreak(weak: true)",
-      convert_content(ctx, &ch.content)?
+      convert_content(ctx, &ch.content, label)?
     )?;
   }
 
   Ok(book_item_str)
 }
 
-fn convert_content(ctx: &RenderContext, content: &str) -> Result<String, anyhow::Error> {
+fn convert_content(
+  ctx: &RenderContext,
+  content: &str,
+  label: &str,
+) -> Result<String, anyhow::Error> {
   let mut content_str = String::new();
+
+  let mut heading = String::new();
 
   let options = Options::ENABLE_SMART_PUNCTUATION
     | Options::ENABLE_STRIKETHROUGH
@@ -120,6 +127,10 @@ fn convert_content(ctx: &RenderContext, content: &str) -> Result<String, anyhow:
   for event in parser {
     match event {
       Event::Start(Tag::Heading(level, _, _)) => {
+        event_stack.push(EventType::Heading);
+
+        heading.clear();
+
         let level_usize: usize = level as usize;
 
         write!(
@@ -128,7 +139,16 @@ fn convert_content(ctx: &RenderContext, content: &str) -> Result<String, anyhow:
           level_usize,
         )?;
       }
-      Event::End(Tag::Heading(_, _, _)) => writeln!(content_str, "]")?,
+      Event::End(Tag::Heading(_, _, _)) => {
+        event_stack.pop();
+
+        writeln!(
+          content_str,
+          "] <{}.html-{}>",
+          label,
+          mdbook::utils::normalize_id(&heading)
+        )?;
+      }
       Event::Start(Tag::Emphasis) => write!(content_str, "_")?,
       Event::End(Tag::Emphasis) => write!(content_str, "_")?,
       Event::Start(Tag::Strong) => write!(content_str, "*")?,
@@ -156,19 +176,17 @@ fn convert_content(ctx: &RenderContext, content: &str) -> Result<String, anyhow:
       Event::Start(Tag::Paragraph) => (),
       Event::End(Tag::Paragraph) => write!(content_str, "\n\n")?,
       Event::Start(Tag::Link(_, url, _)) => {
-        if url.starts_with("http") {
+        if url.starts_with("http://") || url.starts_with("https://") {
           write!(content_str, "#link(\"{}\")[", url)?
+        } else if url.starts_with('#') {
+          write!(
+            content_str,
+            "#link(<{}.html{}>)[",
+            label,
+            url.replace('#', "-")
+          )?
         } else {
-          let url_label = url
-            .split('#')
-            .next()
-            .ok_or(anyhow!("url_label not found"))?;
-
-          if url_label.ends_with("html") {
-            write!(content_str, "#link(<{}>)[", url_label)?
-          } else {
-            write!(content_str, "#link(\"{}\")[", url)?
-          }
+          write!(content_str, "#link(<{}>)[", url.replace('#', "-"))?
         }
       }
       Event::End(Tag::Link(_, _, _)) => write!(content_str, "]")?,
@@ -222,7 +240,9 @@ fn convert_content(ctx: &RenderContext, content: &str) -> Result<String, anyhow:
 
         fs::create_dir_all(dest_dir)?;
 
-        fs::copy(src_path, dest_path)?;
+        if !dest_path.exists() {
+          fs::copy(src_path, dest_path)?;
+        }
 
         write!(content_str, "#figure(\n  image(\"{}\")\n)", path)?
       }
@@ -233,6 +253,7 @@ fn convert_content(ctx: &RenderContext, content: &str) -> Result<String, anyhow:
       }
       Event::Start(Tag::CodeBlock(ref lang)) => {
         event_stack.push(EventType::CodeBlock);
+
         match lang {
           CodeBlockKind::Indented => writeln!(content_str, "````")?,
           CodeBlockKind::Fenced(lang) => {
@@ -246,11 +267,58 @@ fn convert_content(ctx: &RenderContext, content: &str) -> Result<String, anyhow:
           }
         }
       }
-      Event::End(Tag::CodeBlock(_)) => {
+      Event::End(Tag::CodeBlock(ref lang)) => {
         event_stack.pop();
-        writeln!(content_str, "````")?
+
+        match lang {
+          CodeBlockKind::Indented => writeln!(content_str, "````")?,
+          CodeBlockKind::Fenced(lang) => {
+            let langs: Vec<&str> = lang.split(',').collect();
+
+            tracing::error!("{:?}", langs);
+
+            let attr_src_path = "img/ferris/does_not_compile.svg";
+
+            if langs.contains(&"does_not_compile") {
+              let src_path = ctx
+                .root
+                .join(
+                  ctx
+                    .config
+                    .book
+                    .src
+                    .to_str()
+                    .ok_or(anyhow!("src not found"))?,
+                )
+                .join(attr_src_path);
+              let dest_path = ctx.destination.join(attr_src_path);
+
+              let dest_dir = dest_path.parent().ok_or(anyhow!("destination not found"))?;
+
+              fs::create_dir_all(dest_dir)?;
+
+              if !dest_path.exists() {
+                fs::copy(src_path, dest_path)?;
+              }
+
+              writeln!(
+                content_str,
+                "````\n#figure(\n  image(\"{}\", width: 10%)\n)",
+                attr_src_path
+              )?
+            } else {
+              writeln!(content_str, "````")?
+            }
+          }
+        }
       }
-      Event::Code(t) => write!(content_str, "```` {} ````", t)?,
+      Event::Code(t) => {
+        if event_stack.contains(&EventType::Heading) {
+          heading.push_str(&t);
+        }
+
+        write!(content_str, "```` {} ````", t)?;
+      }
       Event::Html(t) => {
         match t.to_string().as_str() {
           "<sup>" => {
@@ -302,7 +370,9 @@ fn convert_content(ctx: &RenderContext, content: &str) -> Result<String, anyhow:
 
                         fs::create_dir_all(dest_dir)?;
 
-                        fs::copy(src_path, dest_path)?;
+                        if !dest_path.exists() {
+                          fs::copy(src_path, dest_path)?;
+                        }
 
                         writeln!(content_str, "#figure(\n  image(\"{}\")\n)", attr_src_path)?
                       }
@@ -316,25 +386,31 @@ fn convert_content(ctx: &RenderContext, content: &str) -> Result<String, anyhow:
           }
         }
       }
-      Event::Text(t) => match event_stack.last() {
-        Some(EventType::CodeBlock) => write!(content_str, "{}", t)?,
-        Some(EventType::TableHead) => write!(content_str, "*{}*", t)?,
-        Some(EventType::Image) => write!(content_str, "/* {} */", t)?,
-        _ => {
-          let mut transformed_text = String::with_capacity(t.len());
-          for ch in t.chars() {
-            match ch {
-              '#' | '$' | '`' | '*' | '_' | '<' | '>' | '@' => {
-                transformed_text.push('\\');
-                transformed_text.push(ch);
-              }
-              _ => transformed_text.push(ch),
-            }
-          }
-
-          write!(content_str, "{}", transformed_text)?
+      Event::Text(t) => {
+        if event_stack.contains(&EventType::Heading) {
+          heading.push_str(&t);
         }
-      },
+
+        match event_stack.last() {
+          Some(EventType::CodeBlock) => write!(content_str, "{}", t)?,
+          Some(EventType::TableHead) => write!(content_str, "*{}*", t)?,
+          Some(EventType::Image) => write!(content_str, "/* {} */", t)?,
+          _ => {
+            let mut transformed_text = String::with_capacity(t.len());
+            for ch in t.chars() {
+              match ch {
+                '#' | '$' | '`' | '*' | '_' | '<' | '>' | '@' => {
+                  transformed_text.push('\\');
+                  transformed_text.push(ch);
+                }
+                _ => transformed_text.push(ch),
+              }
+            }
+
+            write!(content_str, "{}", transformed_text)?
+          }
+        }
+      }
       Event::SoftBreak => writeln!(content_str)?,
       _ => (),
     }
