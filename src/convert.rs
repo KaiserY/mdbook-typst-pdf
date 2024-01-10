@@ -260,7 +260,18 @@ fn convert_content(
             let langs: Vec<&str> = lang.split(',').collect();
 
             if !langs.is_empty() {
-              writeln!(content_str, "````{}", langs[0])?
+              let mut ferris_prefix = "".to_string();
+
+              for l in langs.iter().skip(1) {
+                match l {
+                  &"does_not_compile" | &"not_desired_behavior" | &"panics" => {
+                    ferris_prefix = "#columns(1)[\n".to_string();
+                  }
+                  _ => (),
+                }
+              }
+
+              writeln!(content_str, "{}````{}", ferris_prefix, langs[0])?
             } else {
               writeln!(content_str, "````")?
             }
@@ -275,37 +286,46 @@ fn convert_content(
           CodeBlockKind::Fenced(lang) => {
             let langs: Vec<&str> = lang.split(',').collect();
 
-            tracing::error!("{:?}", langs);
+            if !langs.is_empty() {
+              let mut ferris_suffix = "".to_string();
 
-            let attr_src_path = "img/ferris/does_not_compile.svg";
+              for l in langs.iter().skip(1) {
+                match l {
+                  &"does_not_compile" | &"not_desired_behavior" | &"panics" => {
+                    let ferris_src_path = format!("img/ferris/{}.svg", l);
 
-            if langs.contains(&"does_not_compile") {
-              let src_path = ctx
-                .root
-                .join(
-                  ctx
-                    .config
-                    .book
-                    .src
-                    .to_str()
-                    .ok_or(anyhow!("src not found"))?,
-                )
-                .join(attr_src_path);
-              let dest_path = ctx.destination.join(attr_src_path);
+                    let src_path = ctx
+                      .root
+                      .join(
+                        ctx
+                          .config
+                          .book
+                          .src
+                          .to_str()
+                          .ok_or(anyhow!("src not found"))?,
+                      )
+                      .join(&ferris_src_path);
 
-              let dest_dir = dest_path.parent().ok_or(anyhow!("destination not found"))?;
+                    let dest_path = ctx.destination.join(&ferris_src_path);
 
-              fs::create_dir_all(dest_dir)?;
+                    let dest_dir = dest_path.parent().ok_or(anyhow!("destination not found"))?;
 
-              if !dest_path.exists() {
-                fs::copy(src_path, dest_path)?;
+                    fs::create_dir_all(dest_dir)?;
+
+                    if !dest_path.exists() {
+                      fs::copy(src_path, dest_path)?;
+                    }
+
+                    ferris_suffix = format!(
+                      "\n#place(\n  top + right,\n  figure(\n    image(\"{}\", width: 10%)\n  )\n)\n]",
+                      ferris_src_path
+                    );
+                  }
+                  _ => (),
+                }
               }
 
-              writeln!(
-                content_str,
-                "````\n#figure(\n  image(\"{}\", width: 10%)\n)",
-                attr_src_path
-              )?
+              writeln!(content_str, "````{}", ferris_suffix)?
             } else {
               writeln!(content_str, "````")?
             }
