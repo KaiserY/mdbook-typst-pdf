@@ -1,6 +1,6 @@
 [package]
 name = "mdbook-typst-pdf"
-version = "0.2.2"
+version = "0.2.3"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -36,3 +36,4 @@ anyhow = "1.0.79"
 pulldown-cmark = "0.9.3"
 markup5ever_rcdom = "0.2.0"
 html5ever = "0.26.0"
+regex = "1.10.2"

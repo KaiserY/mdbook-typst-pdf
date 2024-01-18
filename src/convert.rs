@@ -5,10 +5,14 @@ use markup5ever_rcdom::{NodeData, RcDom};
 use mdbook::renderer::RenderContext;
 use mdbook::BookItem;
 use pulldown_cmark::{Alignment, CodeBlockKind, Event, Options, Parser, Tag};
+use regex::Regex;
 use std::fmt::Write;
 use std::fs;
+use std::sync::OnceLock;
 
 use crate::Config;
+
+static EMAIL_REGEX: OnceLock<Regex> = OnceLock::new();
 
 #[derive(Debug, PartialEq)]
 pub enum EventType {
@@ -176,8 +180,13 @@ fn convert_content(
       Event::Start(Tag::Paragraph) => (),
       Event::End(Tag::Paragraph) => write!(content_str, "\n\n")?,
       Event::Start(Tag::Link(_, url, _)) => {
+        let email_regex: &Regex = EMAIL_REGEX
+          .get_or_init(|| Regex::new(r"(?i)^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(.\w{2,3})+$").unwrap());
+
         if url.starts_with("http://") || url.starts_with("https://") {
           write!(content_str, "#link(\"{}\")[", url)?
+        } else if email_regex.is_match(&url) {
+          write!(content_str, "#link(\"mailto:{}\")[", url)?
         } else if url.starts_with('#') {
           write!(
             content_str,
