@@ -73,37 +73,34 @@ fn convert_book_item(
       .and_then(|f| f.split('.').next())
       .ok_or(anyhow!("label not found"))?;
 
-    if let Some(number) = &ch.number {
+    let invisible_heading = if let Some(number) = &ch.number {
       if cfg.section_number {
-        writeln!(
-          book_item_str,
+        format!(
           "#invisible-heading(level: {}, outlined: true)[#\"{} {}\"] <{}.html>",
           number.len(),
           number,
           ch.name,
           label,
-        )?;
+        )
       } else {
-        writeln!(
-          book_item_str,
+        format!(
           "#invisible-heading(level: {}, outlined: true)[{}] <{}.html>",
           number.len(),
           ch.name,
-          label,
-        )?;
+          label
+        )
       }
     } else {
-      writeln!(
-        book_item_str,
+      format!(
         "#invisible-heading(level: 1, outlined: true)[{}] <{}.html>",
         ch.name, label,
-      )?;
-    }
+      )
+    };
 
     writeln!(
       book_item_str,
       "{}#pagebreak(weak: true)",
-      convert_content(ctx, &ch.content, label)?
+      convert_content(ctx, &ch.content, label, &invisible_heading)?
     )?;
   }
 
@@ -114,10 +111,13 @@ fn convert_content(
   ctx: &RenderContext,
   content: &str,
   label: &str,
+  invisible_heading: &str,
 ) -> Result<String, anyhow::Error> {
   let mut content_str = String::new();
 
   let mut heading = String::new();
+
+  let mut writen_invisible_heading = false;
 
   let options = Options::ENABLE_SMART_PUNCTUATION
     | Options::ENABLE_STRIKETHROUGH
@@ -153,6 +153,12 @@ fn convert_content(
           label,
           mdbook::utils::normalize_id(&heading)
         )?;
+
+        if !writen_invisible_heading {
+          writeln!(content_str, "{}", invisible_heading)?;
+
+          writen_invisible_heading = true;
+        }
       }
       Event::Start(Tag::Emphasis) => write!(content_str, "_")?,
       Event::End(TagEnd::Emphasis) => write!(content_str, "_")?,

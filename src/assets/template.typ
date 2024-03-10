@@ -8,6 +8,7 @@
     "Noto Sans Arabic",
     "Noto Sans Hebrew",
     "Noto Sans Devanagari",
+    "Noto Emoji",
   ),
 )
 
