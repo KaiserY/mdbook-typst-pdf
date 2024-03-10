@@ -3,10 +3,11 @@ mod download;
 mod export;
 mod fonts;
 mod package;
+mod terminal;
 mod world;
 
 use codespan_reporting::term::{self, termcolor};
-use export::ExportArgs;
+use export::SharedArgs;
 use mdbook::config::Config as MdConfig;
 use mdbook::renderer::RenderContext;
 use serde::{Deserialize, Serialize};
@@ -17,6 +18,8 @@ use std::path::PathBuf;
 use tempfile::NamedTempFile;
 use termcolor::{ColorChoice, WriteColor};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
+
+use crate::export::Input;
 
 #[derive(Debug, Default, Serialize, Deserialize)]
 #[serde(default, rename_all = "kebab-case")]
@@ -63,8 +66,9 @@ fn main() -> Result<(), anyhow::Error> {
 
     write_file(&typst_str, &typst_filename);
 
-    let args = ExportArgs {
-      input: typst_filename,
+    let args = SharedArgs {
+      input: Input::Path(typst_filename),
+      inputs: vec![],
       output: output_filename(&ctx.destination, &ctx.config, "pdf"),
       root: None,
       font_paths: vec![],

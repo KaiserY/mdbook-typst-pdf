@@ -4,7 +4,7 @@ use html5ever::tendril::TendrilSink;
 use markup5ever_rcdom::{NodeData, RcDom};
 use mdbook::renderer::RenderContext;
 use mdbook::BookItem;
-use pulldown_cmark::{Alignment, CodeBlockKind, Event, Options, Parser, Tag};
+use pulldown_cmark::{Alignment, CodeBlockKind, Event, Options, Parser, Tag, TagEnd};
 use regex::Regex;
 use std::fmt::Write;
 use std::fs;
@@ -16,7 +16,8 @@ static EMAIL_REGEX: OnceLock<Regex> = OnceLock::new();
 
 #[derive(Debug, PartialEq)]
 pub enum EventType {
-  CodeBlock,
+  CodeBlockIndented,
+  CodeBlockFenced(String),
   List,
   NumberedList,
   TableHead,
@@ -130,7 +131,7 @@ fn convert_content(
 
   for event in parser {
     match event {
-      Event::Start(Tag::Heading(level, _, _)) => {
+      Event::Start(Tag::Heading { level, .. }) => {
         event_stack.push(EventType::Heading);
 
         heading.clear();
@@ -143,7 +144,7 @@ fn convert_content(
           level_usize,
         )?;
       }
-      Event::End(Tag::Heading(_, _, _)) => {
+      Event::End(TagEnd::Heading(_)) => {
         event_stack.pop();
 
         writeln!(
@@ -154,21 +155,18 @@ fn convert_content(
         )?;
       }
       Event::Start(Tag::Emphasis) => write!(content_str, "_")?,
-      Event::End(Tag::Emphasis) => write!(content_str, "_")?,
+      Event::End(TagEnd::Emphasis) => write!(content_str, "_")?,
       Event::Start(Tag::Strong) => write!(content_str, "*")?,
-      Event::End(Tag::Strong) => write!(content_str, "*")?,
+      Event::End(TagEnd::Strong) => write!(content_str, "*")?,
       Event::Start(Tag::BlockQuote) => write!(content_str, "#quote(block: true)[")?,
-      Event::End(Tag::BlockQuote) => writeln!(content_str, "]")?,
+      Event::End(TagEnd::BlockQuote) => writeln!(content_str, "]")?,
       Event::Start(Tag::List(None)) => {
         event_stack.push(EventType::List);
-      }
-      Event::End(Tag::List(None)) => {
-        event_stack.pop();
       }
       Event::Start(Tag::List(Some(_))) => {
         event_stack.push(EventType::NumberedList);
       }
-      Event::End(Tag::List(Some(_))) => {
+      Event::End(TagEnd::List(_)) => {
         event_stack.pop();
       }
       Event::Start(Tag::Item) => match event_stack.last() {
@@ -176,29 +174,29 @@ fn convert_content(
         Some(EventType::NumberedList) => write!(content_str, "+ ")?,
         _ => write!(content_str, "- ")?,
       },
-      Event::End(Tag::Item) => writeln!(content_str)?,
+      Event::End(TagEnd::Item) => writeln!(content_str)?,
       Event::Start(Tag::Paragraph) => (),
-      Event::End(Tag::Paragraph) => write!(content_str, "\n\n")?,
-      Event::Start(Tag::Link(_, url, _)) => {
+      Event::End(TagEnd::Paragraph) => write!(content_str, "\n\n")?,
+      Event::Start(Tag::Link { dest_url, .. }) => {
         let email_regex: &Regex = EMAIL_REGEX
           .get_or_init(|| Regex::new(r"(?i)^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(.\w{2,3})+$").unwrap());
 
-        if url.starts_with("http://") || url.starts_with("https://") {
-          write!(content_str, "#link(\"{}\")[", url)?
-        } else if email_regex.is_match(&url) {
-          write!(content_str, "#link(\"mailto:{}\")[", url)?
-        } else if url.starts_with('#') {
+        if dest_url.starts_with("http://") || dest_url.starts_with("https://") {
+          write!(content_str, "#link(\"{}\")[", dest_url)?
+        } else if email_regex.is_match(&dest_url) {
+          write!(content_str, "#link(\"mailto:{}\")[", dest_url)?
+        } else if dest_url.starts_with('#') {
           write!(
             content_str,
             "#link(<{}.html{}>)[",
             label,
-            url.replace('#', "-")
+            dest_url.replace('#', "-")
           )?
         } else {
-          write!(content_str, "#link(<{}>)[", url.replace('#', "-"))?
+          write!(content_str, "#link(<{}>)[", dest_url.replace('#', "-"))?
         }
       }
-      Event::End(Tag::Link(_, _, _)) => write!(content_str, "]")?,
+      Event::End(TagEnd::Link) => write!(content_str, "]")?,
       Event::Start(Tag::Table(align)) => {
         let typst_align = align
           .iter()
@@ -218,18 +216,18 @@ fn convert_content(
           typst_align
         )?
       }
-      Event::End(Tag::Table(_)) => writeln!(content_str, ")")?,
+      Event::End(TagEnd::Table) => writeln!(content_str, ")")?,
       Event::Start(Tag::TableHead) => {
         event_stack.push(EventType::TableHead);
       }
-      Event::End(Tag::TableHead) => {
+      Event::End(TagEnd::TableHead) => {
         event_stack.pop();
       }
       Event::Start(Tag::TableRow) => (),
-      Event::End(Tag::TableRow) => (),
+      Event::End(TagEnd::TableRow) => (),
       Event::Start(Tag::TableCell) => write!(content_str, "[")?,
-      Event::End(Tag::TableCell) => writeln!(content_str, "],")?,
-      Event::Start(Tag::Image(_, path, _title)) => {
+      Event::End(TagEnd::TableCell) => writeln!(content_str, "],")?,
+      Event::Start(Tag::Image { dest_url, .. }) => {
         event_stack.push(EventType::Image);
 
         let src_path = ctx
@@ -242,8 +240,8 @@ fn convert_content(
               .to_str()
               .ok_or(anyhow!("src not found"))?,
           )
-          .join(path.to_string());
-        let dest_path = ctx.destination.join(path.to_string());
+          .join(dest_url.to_string());
+        let dest_path = ctx.destination.join(dest_url.to_string());
 
         let dest_dir = dest_path.parent().ok_or(anyhow!("destination not found"))?;
 
@@ -253,46 +251,46 @@ fn convert_content(
           fs::copy(src_path, dest_path)?;
         }
 
-        write!(content_str, "#figure(\n  image(\"{}\")\n)", path)?
+        write!(content_str, "#figure(\n  image(\"{}\")\n)", dest_url)?
       }
-      Event::End(Tag::Image(_, _path, _title)) => {
+      Event::End(TagEnd::Image) => {
         event_stack.pop();
 
         writeln!(content_str)?
       }
-      Event::Start(Tag::CodeBlock(ref lang)) => {
-        event_stack.push(EventType::CodeBlock);
+      Event::Start(Tag::CodeBlock(ref lang)) => match lang {
+        CodeBlockKind::Indented => {
+          event_stack.push(EventType::CodeBlockIndented);
 
-        match lang {
-          CodeBlockKind::Indented => writeln!(content_str, "````")?,
-          CodeBlockKind::Fenced(lang) => {
-            let langs: Vec<&str> = lang.split(',').collect();
+          writeln!(content_str, "````")?
+        }
+        CodeBlockKind::Fenced(lang) => {
+          event_stack.push(EventType::CodeBlockFenced(lang.to_string()));
 
-            if !langs.is_empty() {
-              let mut ferris_prefix = "".to_string();
+          let langs: Vec<&str> = lang.split(',').collect();
 
-              for l in langs.iter().skip(1) {
-                match l {
-                  &"does_not_compile" | &"not_desired_behavior" | &"panics" => {
-                    ferris_prefix = "#columns(1)[\n".to_string();
-                  }
-                  _ => (),
+          if !langs.is_empty() {
+            let mut ferris_prefix = "".to_string();
+
+            for l in langs.iter().skip(1) {
+              match l {
+                &"does_not_compile" | &"not_desired_behavior" | &"panics" => {
+                  ferris_prefix = "#columns(1)[\n".to_string();
                 }
+                _ => (),
               }
-
-              writeln!(content_str, "{}````{}", ferris_prefix, langs[0])?
-            } else {
-              writeln!(content_str, "````")?
             }
+
+            writeln!(content_str, "{}````{}", ferris_prefix, langs[0])?
+          } else {
+            writeln!(content_str, "````")?
           }
         }
-      }
-      Event::End(Tag::CodeBlock(ref lang)) => {
-        event_stack.pop();
-
-        match lang {
-          CodeBlockKind::Indented => writeln!(content_str, "````")?,
-          CodeBlockKind::Fenced(lang) => {
+      },
+      Event::End(TagEnd::CodeBlock) => {
+        match event_stack.last() {
+          Some(EventType::CodeBlockIndented) => writeln!(content_str, "````")?,
+          Some(EventType::CodeBlockFenced(lang)) => {
             let langs: Vec<&str> = lang.split(',').collect();
 
             if !langs.is_empty() {
@@ -339,7 +337,10 @@ fn convert_content(
               writeln!(content_str, "````")?
             }
           }
+          _ => writeln!(content_str, "````")?,
         }
+
+        event_stack.pop();
       }
       Event::Code(t) => {
         if event_stack.contains(&EventType::Heading) {
@@ -348,7 +349,7 @@ fn convert_content(
 
         write!(content_str, "```` {} ````", t)?;
       }
-      Event::Html(t) => {
+      Event::Html(t) | Event::InlineHtml(t) => {
         match t.to_string().as_str() {
           "<sup>" => {
             write!(content_str, "#super[")?;
@@ -421,7 +422,8 @@ fn convert_content(
         }
 
         match event_stack.last() {
-          Some(EventType::CodeBlock) => write!(content_str, "{}", t)?,
+          Some(EventType::CodeBlockIndented) => write!(content_str, "{}", t)?,
+          Some(EventType::CodeBlockFenced(_)) => write!(content_str, "{}", t)?,
           Some(EventType::TableHead) => write!(content_str, "*{}*", t)?,
           Some(EventType::Image) => write!(content_str, "/* {} */", t)?,
           _ => {

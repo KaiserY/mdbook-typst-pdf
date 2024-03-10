@@ -1,8 +1,10 @@
-use fontdb::{Database, Source};
-use std::cell::OnceCell;
 use std::fs;
 use std::path::PathBuf;
+use std::sync::OnceLock;
+
+use fontdb::{Database, Source};
 use typst::text::{Font, FontBook, FontInfo};
+use typst_timing::TimingScope;
 
 /// Searches for fonts.
 pub struct FontSearcher {
@@ -20,7 +22,7 @@ pub struct FontSlot {
   /// to a collection.
   index: u32,
   /// The lazily loaded font.
-  font: OnceCell<Option<Font>>,
+  font: OnceLock<Option<Font>>,
 }
 
 impl FontSlot {
@@ -29,6 +31,7 @@ impl FontSlot {
     self
       .font
       .get_or_init(|| {
+        let _scope = TimingScope::new("load font", None);
         let data = fs::read(&self.path).ok()?.into();
         Font::new(data, self.index)
       })
@@ -74,7 +77,27 @@ impl FontSearcher {
         self.fonts.push(FontSlot {
           path: path.clone(),
           index: face.index,
-          font: OnceCell::new(),
+          font: OnceLock::new(),
+        });
+      }
+    }
+
+    // Embedded fonts have lowest priority.
+    #[cfg(feature = "embed-fonts")]
+    self.add_embedded();
+  }
+
+  /// Add fonts that are embedded in the binary.
+  #[cfg(feature = "embed-fonts")]
+  fn add_embedded(&mut self) {
+    for data in typst_assets::fonts() {
+      let buffer = typst::foundations::Bytes::from_static(data);
+      for (i, font) in Font::iter(buffer).enumerate() {
+        self.book.push(font.info().clone());
+        self.fonts.push(FontSlot {
+          path: PathBuf::new(),
+          index: i as u32,
+          font: OnceLock::from(Some(font)),
         });
       }
     }

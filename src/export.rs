@@ -8,11 +8,11 @@ use std::path::PathBuf;
 use typst::diag::{At, Severity, SourceDiagnostic, StrResult};
 use typst::eval::Tracer;
 use typst::foundations::Datetime;
-
+use typst::foundations::Smart;
 use typst::syntax::{FileId, Source, Span};
 use typst::{World, WorldExt};
 
-use crate::color_stream;
+use crate::terminal;
 use crate::world::SystemWorld;
 
 type CodespanResult<T> = Result<T, CodespanError>;
@@ -26,8 +26,25 @@ pub struct ExportArgs {
   pub output: PathBuf,
 }
 
-pub fn export_pdf(args: ExportArgs) -> StrResult<()> {
-  let world = SystemWorld::new(&args)?;
+/// Common arguments of compile, watch, and query.
+#[derive(Debug, Clone)]
+pub struct SharedArgs {
+  pub input: Input,
+  pub root: Option<PathBuf>,
+  pub inputs: Vec<(String, String)>,
+  pub font_paths: Vec<PathBuf>,
+  pub output: PathBuf,
+}
+
+/// Which format to use for diagnostics.
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
+pub enum DiagnosticFormat {
+  Human,
+  Short,
+}
+
+pub fn export_pdf(args: SharedArgs) -> StrResult<()> {
+  let world = SystemWorld::new(&args).map_err(|err| eco_format!("{err}"))?;
 
   tracing::info!("Starting compilation");
 
@@ -35,37 +52,28 @@ pub fn export_pdf(args: ExportArgs) -> StrResult<()> {
 
   // Check if main file can be read and opened.
   if let Err(errors) = world.source(world.main()).at(Span::detached()) {
-    tracing::info!("Failed to open and decode main file");
-
-    print_diagnostics(&world, &errors, &[])
+    print_diagnostics(&world, &errors, &[], DiagnosticFormat::Human)
       .map_err(|err| eco_format!("failed to print diagnostics ({err})"))?;
 
-    return Ok(());
+    return Err(eco_format!("export_pdf failed"));
   }
 
   let mut tracer = Tracer::new();
   let result = typst::compile(&world, &mut tracer);
-  let warnings = tracer.warnings();
 
   match result {
     Ok(document) => {
-      let ident = world.input().to_string_lossy();
-      let buffer = typst_pdf::pdf(&document, Some(&ident), now());
-      let output = args.output;
-      fs::write(output, buffer).map_err(|err| eco_format!("failed to write PDF file ({err})"))?;
+      let buffer = typst_pdf::pdf(&document, Smart::Auto, now());
+
+      fs::write(args.output, buffer)
+        .map_err(|err| eco_format!("failed to write PDF file ({err})"))?;
+
       let duration = start.elapsed();
 
       tracing::info!("Compilation succeeded in {duration:?}");
-
-      print_diagnostics(&world, &[], &warnings)
-        .map_err(|err| eco_format!("failed to print diagnostics ({err})"))?;
     }
-
-    // Print diagnostics.
     Err(errors) => {
-      tracing::info!("Compilation failed");
-
-      print_diagnostics(&world, &errors, &warnings)
+      print_diagnostics(&world, &errors, &[], DiagnosticFormat::Human)
         .map_err(|err| eco_format!("failed to print diagnostics ({err})"))?;
     }
   }
@@ -91,13 +99,15 @@ pub fn print_diagnostics(
   world: &SystemWorld,
   errors: &[SourceDiagnostic],
   warnings: &[SourceDiagnostic],
+  diagnostic_format: DiagnosticFormat,
 ) -> Result<(), codespan_reporting::files::Error> {
-  let mut w = color_stream();
-
-  let config = term::Config {
+  let mut config = term::Config {
     tab_width: 2,
     ..Default::default()
   };
+  if diagnostic_format == DiagnosticFormat::Short {
+    config.display_style = term::DisplayStyle::Short;
+  }
 
   for diagnostic in warnings.iter().chain(errors) {
     let diag = match diagnostic.severity {
@@ -114,7 +124,7 @@ pub fn print_diagnostics(
     )
     .with_labels(label(world, diagnostic.span).into_iter().collect());
 
-    term::emit(&mut w, &config, world, &diag)?;
+    term::emit(&mut terminal::out(), &config, world, &diag)?;
 
     // Stacktrace-like helper diagnostics.
     for point in &diagnostic.trace {
@@ -123,7 +133,7 @@ pub fn print_diagnostics(
         .with_message(message)
         .with_labels(label(world, point.span).into_iter().collect());
 
-      term::emit(&mut w, &config, world, &help)?;
+      term::emit(&mut terminal::out(), &config, world, &help)?;
     }
   }
 
@@ -191,4 +201,14 @@ impl<'a> codespan_reporting::files::Files<'a> for SystemWorld {
       }
     })
   }
+}
+
+/// An input that is either stdin or a real path.
+#[derive(Debug, Clone)]
+pub enum Input {
+  /// Stdin, represented by `-`.
+  #[allow(dead_code)]
+  Stdin,
+  /// A non-empty path.
+  Path(PathBuf),
 }

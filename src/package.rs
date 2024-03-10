@@ -1,14 +1,17 @@
-use codespan_reporting::term::{self, termcolor};
-use ecow::eco_format;
 use std::fs;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
+
+use codespan_reporting::term::{self, termcolor};
+use ecow::eco_format;
 use termcolor::WriteColor;
 use typst::diag::{PackageError, PackageResult};
-use typst::syntax::PackageSpec;
+use typst::syntax::package::PackageSpec;
 
-use crate::color_stream;
 use crate::download::download_with_progress;
+use crate::terminal;
+
+const HOST: &str = "https://packages.typst.org";
 
 /// Make a package available in the on-disk cache.
 pub fn prepare_package(spec: &PackageSpec) -> PackageResult<PathBuf> {
@@ -26,14 +29,16 @@ pub fn prepare_package(spec: &PackageSpec) -> PackageResult<PathBuf> {
 
   if let Some(cache_dir) = dirs::cache_dir() {
     let dir = cache_dir.join(&subdir);
-
-    // Download from network if it doesn't exist yet.
-    if spec.namespace == "preview" && !dir.exists() {
-      download_package(spec, &dir)?;
-    }
-
     if dir.exists() {
       return Ok(dir);
+    }
+
+    // Download from network if it doesn't exist yet.
+    if spec.namespace == "preview" {
+      download_package(spec, &dir)?;
+      if dir.exists() {
+        return Ok(dir);
+      }
     }
   }
 
@@ -46,10 +51,7 @@ fn download_package(spec: &PackageSpec, package_dir: &Path) -> PackageResult<()>
   // fetching.
   assert_eq!(spec.namespace, "preview");
 
-  let url = format!(
-    "https://packages.typst.org/preview/{}-{}.tar.gz",
-    spec.name, spec.version
-  );
+  let url = format!("{HOST}/preview/{}-{}.tar.gz", spec.name, spec.version);
 
   print_downloading(spec).unwrap();
 
@@ -70,12 +72,12 @@ fn download_package(spec: &PackageSpec, package_dir: &Path) -> PackageResult<()>
 
 /// Print that a package downloading is happening.
 fn print_downloading(spec: &PackageSpec) -> io::Result<()> {
-  let mut w = color_stream();
   let styles = term::Styles::default();
 
-  w.set_color(&styles.header_help)?;
-  write!(w, "downloading")?;
+  let mut out = terminal::out();
+  out.set_color(&styles.header_help)?;
+  write!(out, "downloading")?;
 
-  w.reset()?;
-  writeln!(w, " {spec}")
+  out.reset()?;
+  writeln!(out, " {spec}")
 }
