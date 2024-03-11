@@ -78,6 +78,8 @@ fn main() -> Result<(), anyhow::Error> {
 
     if let Err(msg) = res {
       print_error(&msg).expect("failed to print error");
+
+      return Err(anyhow::anyhow!(msg));
     }
   }
 

@@ -75,6 +75,8 @@ pub fn export_pdf(args: SharedArgs) -> StrResult<()> {
     Err(errors) => {
       print_diagnostics(&world, &errors, &[], DiagnosticFormat::Human)
         .map_err(|err| eco_format!("failed to print diagnostics ({err})"))?;
+
+        return Err(eco_format!("export_pdf failed"));
     }
   }
 
