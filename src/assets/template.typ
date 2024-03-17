@@ -12,11 +12,6 @@
   ),
 )
 
-#let invisible-heading(..args) = {
-  set text(size: 0pt, fill: white)
-  heading(numbering: none, ..args)
-}
-
 #show link: underline
 
 #show raw.where(block: true): block.with(

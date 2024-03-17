@@ -1,5 +1,4 @@
 use std::io::{self, Write};
-use std::sync::atomic::AtomicBool;
 
 use codespan_reporting::term::termcolor;
 use once_cell::sync::Lazy;
@@ -14,8 +13,6 @@ pub fn out() -> TermOut {
 /// The stuff that has to be shared between instances of [`TermOut`].
 struct TermOutInner {
   stream: termcolor::StandardStream,
-  #[allow(dead_code)]
-  in_alternate_screen: AtomicBool,
 }
 
 impl TermOutInner {
@@ -23,10 +20,7 @@ impl TermOutInner {
     let color_choice = ColorChoice::Auto;
 
     let stream = termcolor::StandardStream::stderr(color_choice);
-    TermOutInner {
-      stream,
-      in_alternate_screen: AtomicBool::new(false),
-    }
+    TermOutInner { stream }
   }
 }
 
