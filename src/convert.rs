@@ -84,7 +84,7 @@ fn convert_book_item(
         )
       } else {
         format!(
-          "{{\n  show heading: none\n  set text(size: 0pt, fill: white)\n  heading(numbering: none, level: {}, outlined: true)[{}]\n}} <{}.html>",
+          "#{{\n  show heading: none\n  set text(size: 0pt, fill: white)\n  heading(numbering: none, level: {}, outlined: true)[{}]\n}} <{}.html>",
           number.len(),
           ch.name,
           label
@@ -92,7 +92,7 @@ fn convert_book_item(
       }
     } else {
       format!(
-        "{{\n  show heading: none\n  set text(size: 0pt, fill: white)\n  heading(numbering: none, level: 1, outlined: true)[{}]\n}} <{}.html>",
+        "#{{\n  show heading: none\n  set text(size: 0pt, fill: white)\n  heading(numbering: none, level: 1, outlined: true)[{}]\n}} <{}.html>",
         ch.name, label,
       )
     };
