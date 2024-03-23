@@ -97,11 +97,19 @@ fn convert_book_item(
       )
     };
 
-    writeln!(
-      book_item_str,
-      "{}#pagebreak(weak: true)",
-      convert_content(ctx, &ch.content, label, &invisible_heading)?
-    )?;
+    if cfg.chapter_no_pagebreak {
+      writeln!(
+        book_item_str,
+        "{}",
+        convert_content(ctx, &ch.content, label, &invisible_heading)?
+      )?;
+    } else {
+      writeln!(
+        book_item_str,
+        "{}#pagebreak(weak: true)",
+        convert_content(ctx, &ch.content, label, &invisible_heading)?
+      )?;
+    }
   }
 
   Ok(book_item_str)

@@ -27,6 +27,7 @@ pub struct Config {
   pub pdf: bool,
   pub custom_template: Option<String>,
   pub section_number: bool,
+  pub chapter_no_pagebreak: bool,
 }
 
 fn main() -> Result<(), anyhow::Error> {
