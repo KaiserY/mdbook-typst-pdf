@@ -1,6 +1,6 @@
 [package]
 name = "mdbook-typst-pdf"
-version = "0.3.6"
+version = "0.4.0"
 edition = "2021"
 repository = "https://github.com/KaiserY/mdbook-typst-pdf"
 
@@ -11,11 +11,11 @@ typst = { git = "https://github.com/typst/typst", rev = "v0.11.0" }
 typst-pdf = { git = "https://github.com/typst/typst", rev = "v0.11.0" }
 typst-timing = { git = "https://github.com/typst/typst", rev = "v0.11.0" }
 codespan-reporting = "0.11.1"
-chrono = { version = "0.4.35", default-features = false, features = [
+chrono = { version = "0.4.37", default-features = false, features = [
   "clock",
   "std",
 ] }
-ecow = "0.2.1"
+ecow = "0.2.2"
 tracing = "0.1.40"
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 same-file = "1.0.6"
@@ -35,10 +35,10 @@ tempfile = "3.10.1"
 mdbook = "0.4.37"
 serde = { version = "1.0.197", features = ["derive"] }
 anyhow = "1.0.81"
-pulldown-cmark = "0.10.0"
-markup5ever_rcdom = "0.2.0"
-html5ever = "0.26.0"
-regex = "1.10.3"
+pulldown-cmark = "0.10.2"
+markup5ever_rcdom = "0.3.0"
+html5ever = "0.27.0"
+regex = "1.10.4"
 parking_lot = "0.12.1"
 notify = "6"
 
