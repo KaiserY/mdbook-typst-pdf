@@ -18,14 +18,6 @@ use crate::world::SystemWorld;
 type CodespanResult<T> = Result<T, CodespanError>;
 type CodespanError = codespan_reporting::files::Error;
 
-#[derive(Debug, Clone)]
-pub struct ExportArgs {
-  pub input: PathBuf,
-  pub root: Option<PathBuf>,
-  pub font_paths: Vec<PathBuf>,
-  pub output: PathBuf,
-}
-
 /// Common arguments of compile, watch, and query.
 #[derive(Debug, Clone)]
 pub struct SharedArgs {
@@ -76,7 +68,7 @@ pub fn export_pdf(args: SharedArgs) -> StrResult<()> {
       print_diagnostics(&world, &errors, &[], DiagnosticFormat::Human)
         .map_err(|err| eco_format!("failed to print diagnostics ({err})"))?;
 
-        return Err(eco_format!("export_pdf failed"));
+      return Err(eco_format!("export_pdf failed"));
     }
   }
 
