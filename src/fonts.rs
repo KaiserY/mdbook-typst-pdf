@@ -81,25 +81,5 @@ impl FontSearcher {
         });
       }
     }
-
-    // Embedded fonts have lowest priority.
-    #[cfg(feature = "embed-fonts")]
-    self.add_embedded();
-  }
-
-  /// Add fonts that are embedded in the binary.
-  #[cfg(feature = "embed-fonts")]
-  fn add_embedded(&mut self) {
-    for data in typst_assets::fonts() {
-      let buffer = typst::foundations::Bytes::from_static(data);
-      for (i, font) in Font::iter(buffer).enumerate() {
-        self.book.push(font.info().clone());
-        self.fonts.push(FontSlot {
-          path: PathBuf::new(),
-          index: i as u32,
-          font: OnceLock::from(Some(font)),
-        });
-      }
-    }
   }
 }
