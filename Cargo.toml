@@ -1,7 +1,8 @@
 [package]
 name = "mdbook-typst-pdf"
-version = "0.4.2"
+version = "0.4.3"
 edition = "2021"
+license = "Apache-2.0"
 repository = "https://github.com/KaiserY/mdbook-typst-pdf"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
