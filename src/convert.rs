@@ -173,7 +173,7 @@ fn convert_content(
       Event::Start(Tag::Strong) => write!(content_str, "*")?,
       Event::End(TagEnd::Strong) => write!(content_str, "*")?,
       Event::Start(Tag::BlockQuote(_)) => write!(content_str, "#quote(block: true)[")?,
-      Event::End(TagEnd::BlockQuote) => writeln!(content_str, "]")?,
+      Event::End(TagEnd::BlockQuote(_)) => writeln!(content_str, "]")?,
       Event::Start(Tag::List(None)) => {
         event_stack.push(EventType::List);
       }
