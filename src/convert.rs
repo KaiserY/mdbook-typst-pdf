@@ -361,7 +361,11 @@ fn convert_content(
           heading.push_str(&t);
         }
 
-        write!(content_str, "```` {} ````", t)?;
+        write!(
+          content_str,
+          r#"#raw("{}")"#,
+          t.replace('\\', r#"\\"#).replace('"', r#"\""#)
+        )?;
       }
       Event::Html(t) | Event::InlineHtml(t) => {
         match t.to_string().as_str() {
