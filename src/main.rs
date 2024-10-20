@@ -1,13 +1,13 @@
+mod args;
 mod convert;
 mod download;
 mod export;
-mod fonts;
 mod package;
 mod terminal;
 mod world;
 
+use args::{FontArgs, PackageStorageArgs};
 use codespan_reporting::term::{self, termcolor};
-use export::SharedArgs;
 use mdbook::config::Config as MdConfig;
 use mdbook::renderer::RenderContext;
 use serde::{Deserialize, Serialize};
@@ -19,7 +19,7 @@ use tempfile::NamedTempFile;
 use termcolor::{ColorChoice, WriteColor};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
-use crate::export::Input;
+use crate::args::{Input, SharedArgs};
 
 #[derive(Debug, Default, Serialize, Deserialize)]
 #[serde(default, rename_all = "kebab-case")]
@@ -72,7 +72,15 @@ fn main() -> Result<(), anyhow::Error> {
       inputs: vec![],
       output: output_filename(&ctx.destination, &ctx.config, "pdf"),
       root: None,
-      font_paths: vec![],
+      font_args: FontArgs {
+        font_paths: vec![],
+        ignore_system_fonts: false,
+      },
+      creation_timestamp: None,
+      package_storage_args: PackageStorageArgs {
+        package_cache_path: None,
+        package_path: None,
+      },
     };
 
     let res = crate::export::export_pdf(args);

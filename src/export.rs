@@ -3,37 +3,20 @@ use codespan_reporting::diagnostic::{Diagnostic, Label};
 use codespan_reporting::term;
 use ecow::eco_format;
 use std::fs;
-use std::path::PathBuf;
-
+use typst::diag::Warned;
 use typst::diag::{At, Severity, SourceDiagnostic, StrResult};
-use typst::eval::Tracer;
 use typst::foundations::Datetime;
 use typst::foundations::Smart;
 use typst::syntax::{FileId, Source, Span};
 use typst::{World, WorldExt};
+use typst_pdf::{PdfOptions, PdfStandards};
 
+use crate::args::{DiagnosticFormat, SharedArgs};
 use crate::terminal;
 use crate::world::SystemWorld;
 
 type CodespanResult<T> = Result<T, CodespanError>;
 type CodespanError = codespan_reporting::files::Error;
-
-/// Common arguments of compile, watch, and query.
-#[derive(Debug, Clone)]
-pub struct SharedArgs {
-  pub input: Input,
-  pub root: Option<PathBuf>,
-  pub inputs: Vec<(String, String)>,
-  pub font_paths: Vec<PathBuf>,
-  pub output: PathBuf,
-}
-
-/// Which format to use for diagnostics.
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
-pub enum DiagnosticFormat {
-  Human,
-  Short,
-}
 
 pub fn export_pdf(args: SharedArgs) -> StrResult<()> {
   let world = SystemWorld::new(&args).map_err(|err| eco_format!("{err}"))?;
@@ -50,19 +33,33 @@ pub fn export_pdf(args: SharedArgs) -> StrResult<()> {
     return Err(eco_format!("export_pdf failed"));
   }
 
-  let mut tracer = Tracer::new();
-  let result = typst::compile(&world, &mut tracer);
+  let Warned { output, warnings } = typst::compile(&world);
+
+  let result = output.and_then(|document| {
+    let options = PdfOptions {
+      ident: Smart::Auto,
+      timestamp: convert_datetime(chrono::Utc::now()),
+      page_ranges: None,
+      standards: pdf_standards().at(Span::detached())?,
+    };
+
+    let buffer = typst_pdf::pdf(&document, &options)?;
+
+    fs::write(args.output, buffer)
+      .map_err(|err| eco_format!("failed to write PDF file ({err})"))
+      .at(Span::detached())?;
+
+    Ok(())
+  });
 
   match result {
-    Ok(document) => {
-      let buffer = typst_pdf::pdf(&document, Smart::Auto, now());
-
-      fs::write(args.output, buffer)
-        .map_err(|err| eco_format!("failed to write PDF file ({err})"))?;
-
+    Ok(()) => {
       let duration = start.elapsed();
 
       tracing::info!("Compilation succeeded in {duration:?}");
+
+      print_diagnostics(&world, &[], &warnings, DiagnosticFormat::Human)
+        .map_err(|err| eco_format!("failed to print diagnostics ({err})"))?;
     }
     Err(errors) => {
       print_diagnostics(&world, &errors, &[], DiagnosticFormat::Human)
@@ -73,19 +70,6 @@ pub fn export_pdf(args: SharedArgs) -> StrResult<()> {
   }
 
   Ok(())
-}
-
-/// Get the current date and time in UTC.
-fn now() -> Option<Datetime> {
-  let now = chrono::Local::now().naive_utc();
-  Datetime::from_ymd_hms(
-    now.year(),
-    now.month().try_into().ok()?,
-    now.day().try_into().ok()?,
-    now.hour().try_into().ok()?,
-    now.minute().try_into().ok()?,
-    now.second().try_into().ok()?,
-  )
 }
 
 /// Print diagnostic messages to the terminal.
@@ -197,12 +181,21 @@ impl<'a> codespan_reporting::files::Files<'a> for SystemWorld {
   }
 }
 
-/// An input that is either stdin or a real path.
-#[derive(Debug, Clone)]
-pub enum Input {
-  /// Stdin, represented by `-`.
-  #[allow(dead_code)]
-  Stdin,
-  /// A non-empty path.
-  Path(PathBuf),
+/// The PDF standards to try to conform with.
+fn pdf_standards() -> StrResult<PdfStandards> {
+  let list = vec![];
+
+  PdfStandards::new(&list)
+}
+
+/// Convert [`chrono::DateTime`] to [`Datetime`]
+fn convert_datetime(date_time: chrono::DateTime<chrono::Utc>) -> Option<Datetime> {
+  Datetime::from_ymd_hms(
+    date_time.year(),
+    date_time.month().try_into().ok()?,
+    date_time.day().try_into().ok()?,
+    date_time.hour().try_into().ok()?,
+    date_time.minute().try_into().ok()?,
+    date_time.second().try_into().ok()?,
+  )
 }
