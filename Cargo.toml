@@ -1,6 +1,6 @@
 [package]
 name = "mdbook-typst-pdf"
-version = "0.5.0"
+version = "0.5.1"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/KaiserY/mdbook-typst-pdf"
@@ -45,6 +45,7 @@ html5ever = "0.29.0"
 regex = "1.11.0"
 parking_lot = "0.12.3"
 notify = "6"
+openssl = { version = "0.10.68" , features = ["vendored"] }
 
 # The profile that 'cargo dist' will build with
 [profile.dist]
