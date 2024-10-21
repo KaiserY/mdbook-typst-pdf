@@ -137,8 +137,6 @@ fn convert_content(
 
   let mut event_stack = Vec::new();
 
-  let mut listing_opt: Option<(String, String, String)> = None;
-
   for event in parser {
     match event {
       Event::Start(Tag::Heading { level, .. }) => {
@@ -281,12 +279,6 @@ fn convert_content(
           writeln!(content_str, "````")?
         }
         CodeBlockKind::Fenced(lang) => {
-          if let Some((_, file_name, _)) = &listing_opt {
-            if !file_name.is_empty() {
-              writeln!(content_str, "\n文件名：{}\n", file_name)?;
-            }
-          }
-
           event_stack.push(EventType::CodeBlockFenced(lang.to_string()));
 
           let langs: Vec<&str> = lang.split(',').collect();
@@ -358,10 +350,6 @@ fn convert_content(
             } else {
               writeln!(content_str, "````")?
             }
-
-            if let Some((number, _, caption)) = &listing_opt {
-              writeln!(content_str, "\n示例 {}：{}\n", number, caption)?;
-            }
           }
           _ => writeln!(content_str, "````")?,
         }
@@ -388,11 +376,6 @@ fn convert_content(
           }
           "</sup>" => {
             write!(content_str, "]")?;
-
-            continue;
-          }
-          "</Listing>" => {
-            listing_opt = None;
 
             continue;
           }
@@ -444,22 +427,6 @@ fn convert_content(
                         writeln!(content_str, "#figure(\n  image(\"{}\")\n)", attr_src_path)?
                       }
                     }
-                  }
-                  "listing" => {
-                    let mut number = "".to_string();
-                    let mut file_name = "".to_string();
-                    let mut caption = "".to_string();
-
-                    for attr in attrs.borrow().iter() {
-                      match attr.name.local.as_ref() {
-                        "number" => number = attr.value.to_string(),
-                        "file-name" => file_name = attr.value.to_string(),
-                        "caption" => caption = attr.value.to_string(),
-                        _ => (),
-                      }
-                    }
-
-                    listing_opt = Some((number, file_name, caption));
                   }
                   "span" => (),
                   _ => (),
