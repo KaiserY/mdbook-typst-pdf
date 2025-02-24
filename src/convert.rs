@@ -137,6 +137,9 @@ fn convert_content(
 
   let mut event_stack = Vec::new();
 
+  let email_regex: &Regex = EMAIL_REGEX
+    .get_or_init(|| Regex::new(r"(?i)^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(.\w{2,3})+$").unwrap());
+
   for event in parser {
     match event {
       Event::Start(Tag::Heading { level, .. }) => {
@@ -192,9 +195,6 @@ fn convert_content(
       Event::Start(Tag::Paragraph) => (),
       Event::End(TagEnd::Paragraph) => write!(content_str, "\n\n")?,
       Event::Start(Tag::Link { dest_url, .. }) => {
-        let email_regex: &Regex = EMAIL_REGEX
-          .get_or_init(|| Regex::new(r"(?i)^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(.\w{2,3})+$").unwrap());
-
         if dest_url.starts_with("http://") || dest_url.starts_with("https://") {
           write!(content_str, "#link(\"{}\")[", dest_url)?
         } else if email_regex.is_match(&dest_url) {

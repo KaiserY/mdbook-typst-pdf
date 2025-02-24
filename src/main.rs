@@ -6,7 +6,10 @@ mod package;
 mod terminal;
 mod world;
 
-use args::{FontArgs, PackageStorageArgs};
+use args::{
+  CompileArgs, DiagnosticFormat, FontArgs, Output, OutputFormat, PackageArgs, ProcessArgs,
+  WorldArgs,
+};
 use codespan_reporting::term::{self, termcolor};
 use mdbook::config::Config as MdConfig;
 use mdbook::renderer::RenderContext;
@@ -19,7 +22,7 @@ use tempfile::NamedTempFile;
 use termcolor::{ColorChoice, WriteColor};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
-use crate::args::{Input, SharedArgs};
+use crate::args::{CompileCommand, Input};
 
 #[derive(Debug, Default, Serialize, Deserialize)]
 #[serde(default, rename_all = "kebab-case")]
@@ -67,23 +70,40 @@ fn main() -> Result<(), anyhow::Error> {
 
     write_file(&typst_str, &typst_filename);
 
-    let args = SharedArgs {
+    let args = CompileArgs {
       input: Input::Path(typst_filename),
-      inputs: vec![],
-      output: output_filename(&ctx.destination, &ctx.config, "pdf"),
-      root: None,
-      font_args: FontArgs {
-        font_paths: vec![],
-        ignore_system_fonts: false,
+      output: Some(Output::Path(output_filename(
+        &ctx.destination,
+        &ctx.config,
+        "pdf",
+      ))),
+      format: Some(OutputFormat::Pdf),
+      world: WorldArgs {
+        inputs: vec![],
+        root: None,
+        font: FontArgs {
+          font_paths: vec![],
+          ignore_system_fonts: false,
+        },
+        package: PackageArgs {
+          package_path: None,
+          package_cache_path: None,
+        },
+        creation_timestamp: None,
       },
-      creation_timestamp: None,
-      package_storage_args: PackageStorageArgs {
-        package_cache_path: None,
-        package_path: None,
+      pages: None,
+      pdf_standard: vec![],
+      ppi: 0.0,
+      make_deps: None,
+      process: ProcessArgs {
+        jobs: None,
+        features: vec![],
+        diagnostic_format: DiagnosticFormat::Human,
       },
+      open: None,
     };
 
-    let res = crate::export::export_pdf(args);
+    let res = crate::export::export_pdf(&CompileCommand { args });
 
     if let Err(msg) = res {
       print_error(&msg).expect("failed to print error");
