@@ -6,12 +6,12 @@ use parking_lot::RwLock;
 use std::fs;
 use std::io::Write;
 use std::path::PathBuf;
-use typst::diag::{bail, At, Severity, SourceDiagnostic, StrResult, Warned};
+use typst::WorldExt;
+use typst::diag::{At, Severity, SourceDiagnostic, StrResult, Warned, bail};
 use typst::foundations::Datetime;
 use typst::foundations::Smart;
 use typst::layout::{Frame, PageRanges};
 use typst::syntax::{FileId, Source, Span};
-use typst::WorldExt;
 use typst_pdf::{PdfOptions, PdfStandards, Timestamp};
 
 use crate::args::{

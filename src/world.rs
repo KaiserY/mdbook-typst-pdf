@@ -7,7 +7,7 @@ use std::sync::{LazyLock, OnceLock};
 use std::{fmt, fs, io, mem};
 
 use chrono::{DateTime, Datelike, FixedOffset, Local, Utc};
-use ecow::{eco_format, EcoString};
+use ecow::{EcoString, eco_format};
 use parking_lot::Mutex;
 use typst::diag::{FileError, FileResult};
 use typst::foundations::{Bytes, Datetime, Dict, IntoValue};

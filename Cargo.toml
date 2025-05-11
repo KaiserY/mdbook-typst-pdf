@@ -1,7 +1,7 @@
 [package]
 name = "mdbook-typst-pdf"
-version = "0.6.0"
-edition = "2021"
+version = "0.6.1"
+edition = "2024"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/KaiserY/mdbook-typst-pdf"
 description = "mdbook typst pdf backend"
@@ -14,38 +14,26 @@ typst = "0.13.1"
 typst-pdf = "0.13.1"
 typst-kit = "0.13.1"
 typst-timing = "0.13.1"
-codespan-reporting = "0.11.1"
-chrono = { version = "0.4.40", default-features = false, features = [
+codespan-reporting = "0.12.0"
+chrono = { version = "0.4.41", default-features = false, features = [
   "clock",
   "std",
 ] }
-ecow = "0.2.3"
+ecow = "0.2.5"
 tracing = "0.1.41"
 tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
-same-file = "1.0.6"
-comemo = "0.4.0"
-fontdb = { version = "0.23", default-features = false, features = [
-  "memmap",
-  "fontconfig",
-] }
-once_cell = "1"
 ureq = { version = "3", default-features = false, features = ["gzip", "json"] }
-env_proxy = "0.4"
-dirs = "6"
-flate2 = "1"
-tar = "0.4"
 pathdiff = "0.2"
-tempfile = "3.18.0"
-mdbook = "0.4.46"
-serde = { version = "1.0.218", features = ["derive"] }
-anyhow = "1.0.97"
+tempfile = "3.19.1"
+mdbook = "0.4.49"
+serde = { version = "1.0.219", features = ["derive"] }
+anyhow = "1.0.98"
 pulldown-cmark = "0.13.0"
-markup5ever_rcdom = "=0.5.0-unofficial"
-html5ever = "0.29.1"
+markup5ever_rcdom = "0.5.3-unofficial"
+html5ever = "0.31.0"
 regex = "1.11.1"
 parking_lot = "0.12.3"
-notify = "8"
-openssl = { version = "0.10.71" , features = ["vendored"] }
+openssl = { version = "0.10.72" , features = ["vendored"] }
 
 # The profile that 'cargo dist' will build with
 [profile.dist]

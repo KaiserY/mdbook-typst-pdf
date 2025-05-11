@@ -2,8 +2,9 @@ use anyhow::anyhow;
 use html5ever::parse_document;
 use html5ever::tendril::TendrilSink;
 use markup5ever_rcdom::{NodeData, RcDom};
-use mdbook::renderer::RenderContext;
 use mdbook::BookItem;
+use mdbook::book::Chapter;
+use mdbook::renderer::RenderContext;
 use pulldown_cmark::{Alignment, CodeBlockKind, Event, Options, Parser, Tag, TagEnd};
 use regex::Regex;
 use std::fmt::Write;
@@ -61,53 +62,13 @@ fn convert_book_item(
   let mut book_item_str = String::new();
 
   if let BookItem::Chapter(ref ch) = *item {
-    let label_path = ch
-      .source_path
-      .to_owned()
-      .ok_or(anyhow!("source_path not found"))?;
-
-    let label = label_path
-      .as_path()
-      .file_name()
-      .and_then(|f| f.to_str())
-      .and_then(|f| f.split('.').next())
-      .ok_or(anyhow!("label not found"))?;
-
-    let invisible_heading = if let Some(number) = &ch.number {
-      if cfg.section_number {
-        format!(
-          "#{{\n  show heading: none\n  set text(size: 0pt, fill: white)\n  heading(numbering: none, level: {}, outlined: true)[#\"{} {}\"]\n}} <{}.html>",
-          number.len(),
-          number,
-          ch.name,
-          label,
-        )
-      } else {
-        format!(
-          "#{{\n  show heading: none\n  set text(size: 0pt, fill: white)\n  heading(numbering: none, level: {}, outlined: true)[{}]\n}} <{}.html>",
-          number.len(),
-          ch.name,
-          label
-        )
-      }
-    } else {
-      format!(
-        "#{{\n  show heading: none\n  set text(size: 0pt, fill: white)\n  heading(numbering: none, level: 1, outlined: true)[{}]\n}} <{}.html>",
-        ch.name, label,
-      )
-    };
-
     if cfg.chapter_no_pagebreak {
-      writeln!(
-        book_item_str,
-        "{}",
-        convert_content(ctx, &ch.content, label, &invisible_heading)?
-      )?;
+      writeln!(book_item_str, "{}", convert_content(ctx, cfg, ch)?)?;
     } else {
       writeln!(
         book_item_str,
         "{}#pagebreak(weak: true)",
-        convert_content(ctx, &ch.content, label, &invisible_heading)?
+        convert_content(ctx, cfg, ch)?
       )?;
     }
   }
@@ -117,10 +78,21 @@ fn convert_book_item(
 
 fn convert_content(
   ctx: &RenderContext,
-  content: &str,
-  label: &str,
-  invisible_heading: &str,
+  cfg: &Config,
+  ch: &Chapter,
 ) -> Result<String, anyhow::Error> {
+  let label_path = ch
+    .source_path
+    .to_owned()
+    .ok_or(anyhow!("source_path not found"))?;
+
+  let label = label_path
+    .as_path()
+    .file_name()
+    .and_then(|f| f.to_str())
+    .and_then(|f| f.split('.').next())
+    .ok_or(anyhow!("label not found"))?;
+
   let mut content_str = String::new();
 
   let mut heading = String::new();
@@ -133,7 +105,7 @@ fn convert_content(
     | Options::ENABLE_TASKLISTS
     | Options::ENABLE_TABLES;
 
-  let parser = Parser::new_ext(content, options);
+  let parser = Parser::new_ext(&ch.content, options);
 
   let mut event_stack = Vec::new();
 
@@ -151,7 +123,7 @@ fn convert_content(
 
         write!(
           content_str,
-          "#heading(level: {}, outlined: false)[",
+          "#heading(level: {}, outlined: false, bookmarked: false)[",
           level_usize,
         )?;
       }
@@ -166,6 +138,30 @@ fn convert_content(
         )?;
 
         if !writen_invisible_heading {
+          let invisible_heading = if let Some(number) = &ch.number {
+            if cfg.section_number {
+              format!(
+                "#{{\n  show heading: none\n  heading(numbering: none, level: {}, outlined: false, bookmarked: true)[#\"{} {}\"]\n}} <{}.html>",
+                number.len(),
+                number,
+                ch.name,
+                label,
+              )
+            } else {
+              format!(
+                "#{{\n  show heading: none\n  heading(numbering: none, level: {}, outlined: false, bookmarked: true)[{}]\n}} <{}.html>",
+                number.len(),
+                ch.name,
+                label
+              )
+            }
+          } else {
+            format!(
+              "#{{\n  show heading: none\n  heading(numbering: none, level: 1, outlined: false, bookmarked: true)[{}]\n}} <{}.html>",
+              ch.name, label,
+            )
+          };
+
           writeln!(content_str, "{}", invisible_heading)?;
 
           writen_invisible_heading = true;
@@ -388,13 +384,13 @@ fn convert_content(
 
         let dom_children = &dom.document.children.borrow();
 
-        if dom_children.len() > 0 && matches!(dom_children[0].data, NodeData::Element { .. }) {
+        if !dom_children.is_empty() && matches!(dom_children[0].data, NodeData::Element { .. }) {
           let html_children = &dom_children[0].children.borrow();
 
           if html_children.len() > 1 {
             let body_children = &html_children[1].children.borrow();
 
-            if body_children.len() > 0 {
+            if !body_children.is_empty() {
               if let NodeData::Element { name, attrs, .. } = &body_children[0].data {
                 match name.local.as_ref() {
                   "img" => {
@@ -443,7 +439,23 @@ fn convert_content(
 
         match event_stack.last() {
           Some(EventType::CodeBlockIndented) => write!(content_str, "{}", t)?,
-          Some(EventType::CodeBlockFenced(_)) => write!(content_str, "{}", t)?,
+          Some(EventType::CodeBlockFenced(_)) => {
+            if cfg.rust_book && t.lines().any(|line| line.starts_with('#')) {
+              let mut filtered_t = t
+                .lines()
+                .filter(|line| !line.starts_with('#'))
+                .collect::<Vec<&str>>()
+                .join("\n");
+
+              if !filtered_t.ends_with('\n') {
+                filtered_t.push('\n');
+              }
+
+              write!(content_str, "{}", filtered_t)?
+            } else {
+              write!(content_str, "{}", t)?
+            }
+          }
           Some(EventType::TableHead) => write!(content_str, "*{}*", t)?,
           Some(EventType::Image) => write!(content_str, "/* {} */", t)?,
           _ => {

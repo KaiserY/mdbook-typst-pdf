@@ -24,9 +24,10 @@ Add follow `[output.typst-pdf]` section to `book.toml` then `mdbook build`
 
 [output.typst-pdf]
 pdf = true # false for generate typ file only
-custom_template = "template.typ" # filename for custom typst template for advanced styling
+custom-template = "template.typ" # filename for custom typst template for advanced styling
 section-number = true # true for generate chapter head numbering
-chapter_no_pagebreak = true # true for not add pagebreak after chapter
+chapter-no-pagebreak = true # true for not add pagebreak after chapter
+rust-book = true # true for enabling rust book specific parsing
 ```
 
 ## Custom template

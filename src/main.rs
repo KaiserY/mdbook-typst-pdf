@@ -31,6 +31,7 @@ pub struct Config {
   pub custom_template: Option<String>,
   pub section_number: bool,
   pub chapter_no_pagebreak: bool,
+  pub rust_book: bool,
 }
 
 fn main() -> Result<(), anyhow::Error> {
