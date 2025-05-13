@@ -24,7 +24,7 @@ tracing = "0.1.41"
 tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
 ureq = { version = "3", default-features = false, features = ["gzip", "json"] }
 pathdiff = "0.2"
-tempfile = "3.19.1"
+tempfile = "3.20.0"
 mdbook = "0.4.49"
 serde = { version = "1.0.219", features = ["derive"] }
 anyhow = "1.0.98"
