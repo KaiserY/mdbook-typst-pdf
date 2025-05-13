@@ -10,15 +10,12 @@ ci = "github"
 # The installers to generate for each app
 installers = []
 # Target platforms to build apps for (Rust target-triple syntax)
-targets = ["aarch64-apple-darwin", "x86_64-apple-darwin", "x86_64-unknown-linux-gnu", "x86_64-unknown-linux-musl", "x86_64-pc-windows-msvc"]
+targets = ["x86_64-unknown-linux-gnu", "x86_64-unknown-linux-musl", "x86_64-pc-windows-msvc"]
 # Which actions to run on pull requests
 pr-run-mode = "plan"
 
 [dist.github-custom-runners]
 global = "ubuntu-latest"
-
-[dist.github-custom-runners.aarch64-apple-darwin]
-runner = "ubuntu-latest"
 
 [dist.github-custom-runners.x86_64-apple-darwin]
 runner = "ubuntu-latest"
