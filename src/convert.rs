@@ -214,9 +214,9 @@ fn convert_content(
           .iter()
           .map(|a| match a {
             Alignment::None => "auto",
-            Alignment::Left => "left",
-            Alignment::Center => "center",
-            Alignment::Right => "right",
+            Alignment::Left => "left + horizon",
+            Alignment::Center => "center + horizon",
+            Alignment::Right => "right + horizon",
           })
           .collect::<Vec<&str>>()
           .join(", ");
