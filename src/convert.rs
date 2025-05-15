@@ -127,8 +127,10 @@ fn convert_content(
           level_usize,
         )?;
       }
-      Event::End(TagEnd::Heading(_)) => {
+      Event::End(TagEnd::Heading(level)) => {
         event_stack.pop();
+
+        let level_usize: usize = level as usize;
 
         writeln!(
           content_str,
@@ -141,7 +143,7 @@ fn convert_content(
           let invisible_heading = if let Some(number) = &ch.number {
             if cfg.section_number {
               format!(
-                "#{{\n  show heading: none\n  heading(numbering: none, level: {}, outlined: false, bookmarked: true)[#\"{} {}\"]\n}} <{}.html>",
+                "#{{\n  show heading: none\n  heading(numbering: none, level: {}, outlined: true, bookmarked: true)[#\"{} {}\"]\n}} <{}.html>",
                 number.len(),
                 number,
                 ch.name,
@@ -149,15 +151,15 @@ fn convert_content(
               )
             } else {
               format!(
-                "#{{\n  show heading: none\n  heading(numbering: none, level: {}, outlined: false, bookmarked: true)[{}]\n}} <{}.html>",
-                number.len(),
+                "#{{\n  show heading: none\n  heading(numbering: none, level: {}, outlined: true, bookmarked: true)[{}]\n}} <{}.html>",
+                level_usize,
                 ch.name,
                 label
               )
             }
           } else {
             format!(
-              "#{{\n  show heading: none\n  heading(numbering: none, level: 1, outlined: false, bookmarked: true)[{}]\n}} <{}.html>",
+              "#{{\n  show heading: none\n  heading(numbering: none, level: 1, outlined: true, bookmarked: true)[{}]\n}} <{}.html>",
               ch.name, label,
             )
           };
