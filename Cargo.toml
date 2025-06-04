@@ -1,6 +1,6 @@
 [package]
 name = "mdbook-typst-pdf"
-version = "0.6.2"
+version = "0.6.3"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/KaiserY/mdbook-typst-pdf"
@@ -25,15 +25,15 @@ tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
 ureq = { version = "3", default-features = false, features = ["gzip", "json"] }
 pathdiff = "0.2"
 tempfile = "3.20.0"
-mdbook = "0.4.49"
+mdbook = "0.4.51"
 serde = { version = "1.0.219", features = ["derive"] }
 anyhow = "1.0.98"
 pulldown-cmark = "0.13.0"
 markup5ever_rcdom = "0.5.3-unofficial"
 html5ever = "0.31.0"
 regex = "1.11.1"
-parking_lot = "0.12.3"
-openssl = { version = "0.10.72" , features = ["vendored"] }
+parking_lot = "0.12.4"
+openssl = { version = "0.10.73" , features = ["vendored"] }
 
 # The profile that 'cargo dist' will build with
 [profile.dist]

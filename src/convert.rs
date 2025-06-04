@@ -152,9 +152,7 @@ fn convert_content(
             } else {
               format!(
                 "#{{\n  show heading: none\n  heading(numbering: none, level: {}, outlined: true, bookmarked: true)[{}]\n}} <{}.html>",
-                level_usize,
-                ch.name,
-                label
+                level_usize, ch.name, label
               )
             }
           } else {
@@ -171,8 +169,8 @@ fn convert_content(
       }
       Event::Start(Tag::Emphasis) => write!(content_str, "_")?,
       Event::End(TagEnd::Emphasis) => write!(content_str, "_")?,
-      Event::Start(Tag::Strong) => write!(content_str, "*")?,
-      Event::End(TagEnd::Strong) => write!(content_str, "*")?,
+      Event::Start(Tag::Strong) => write!(content_str, "#strong[")?,
+      Event::End(TagEnd::Strong) => write!(content_str, "]")?,
       Event::Start(Tag::BlockQuote(_)) => write!(content_str, "#quote(block: true)[")?,
       Event::End(TagEnd::BlockQuote(_)) => writeln!(content_str, "]")?,
       Event::Start(Tag::List(None)) => {
@@ -442,10 +440,10 @@ fn convert_content(
         match event_stack.last() {
           Some(EventType::CodeBlockIndented) => write!(content_str, "{}", t)?,
           Some(EventType::CodeBlockFenced(_)) => {
-            if cfg.rust_book && t.lines().any(|line| line.starts_with('#')) {
+            if cfg.rust_book && t.lines().any(|line| line.starts_with("# ")) {
               let mut filtered_t = t
                 .lines()
-                .filter(|line| !line.starts_with('#'))
+                .filter(|line| !line.starts_with("# "))
                 .collect::<Vec<&str>>()
                 .join("\n");
 
