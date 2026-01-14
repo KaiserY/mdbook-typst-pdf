@@ -11,8 +11,8 @@ use args::{
   WorldArgs,
 };
 use codespan_reporting::term::{self, termcolor};
-use mdbook::config::Config as MdConfig;
-use mdbook::renderer::RenderContext;
+use mdbook_renderer::RenderContext;
+use mdbook_renderer::config::Config as MdConfig;
 use serde::{Deserialize, Serialize};
 use std::fs::File;
 use std::io::{self, IsTerminal, Write};
@@ -47,10 +47,7 @@ fn main() -> Result<(), anyhow::Error> {
 
   let ctx = RenderContext::from_json(&mut stdin)?;
 
-  let cfg: Config = ctx
-    .config
-    .get_deserialized_opt("output.typst-pdf")?
-    .unwrap_or_default();
+  let cfg: Config = ctx.config.get("output.typst-pdf")?.unwrap_or_default();
 
   let template_str = if let Some(custom_template) = &cfg.custom_template {
     let mut custom_template_path = ctx.root.clone();

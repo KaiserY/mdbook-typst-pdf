@@ -1,7 +1,6 @@
-#![allow(dead_code)]
+use std::io::{self, Write};
 
 use codespan_reporting::term::termcolor;
-use std::io::{self, Write};
 use termcolor::{ColorChoice, WriteColor};
 use typst::utils::singleton;
 

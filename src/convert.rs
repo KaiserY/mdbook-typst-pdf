@@ -1,10 +1,11 @@
 use anyhow::anyhow;
+use comrak::Anchorizer;
 use html5ever::parse_document;
 use html5ever::tendril::TendrilSink;
 use markup5ever_rcdom::{NodeData, RcDom};
-use mdbook::BookItem;
-use mdbook::book::Chapter;
-use mdbook::renderer::RenderContext;
+use mdbook_renderer::RenderContext;
+use mdbook_renderer::book::BookItem;
+use mdbook_renderer::book::Chapter;
 use pulldown_cmark::{Alignment, CodeBlockKind, Event, Options, Parser, Tag, TagEnd};
 use regex::Regex;
 use std::fmt::Write;
@@ -112,6 +113,8 @@ fn convert_content(
   let email_regex: &Regex = EMAIL_REGEX
     .get_or_init(|| Regex::new(r"(?i)^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(.\w{2,3})+$").unwrap());
 
+  let mut anchorizer = Anchorizer::new();
+
   for event in parser {
     match event {
       Event::Start(Tag::Heading { level, .. }) => {
@@ -136,7 +139,7 @@ fn convert_content(
           content_str,
           "] <{}.html-{}>",
           label,
-          mdbook::utils::normalize_id(&heading)
+          anchorizer.anchorize(&heading)
         )?;
 
         if !writen_invisible_heading {

@@ -1,4 +1,7 @@
-#![allow(dead_code)]
+// This module is imported both from the `typst-cli` crate itself
+// and from its build script. In this module, you can only import from crates
+// that are both runtime and build dependencies of this crate, or else
+// Rust will give a confusing error message about a missing crate.
 
 use std::fmt::{self, Display, Formatter};
 use std::num::NonZeroUsize;
@@ -59,6 +62,12 @@ pub struct CompileArgs {
   /// conformance with.
   pub pdf_standard: Vec<PdfStandard>,
 
+  /// By default, even when not producing a `PDF/UA-1` document, a tagged PDF
+  /// document is written to provide a baseline of accessibility. In some
+  /// circumstances (for example when trying to reduce the size of a document)
+  /// it can be desirable to disable tagged PDF.
+  pub no_pdf_tags: bool,
+
   /// The PPI (pixels per inch) to use for PNG export.
   pub ppi: f32,
 
@@ -66,12 +75,26 @@ pub struct CompileArgs {
   /// dependencies will be written.
   pub make_deps: Option<PathBuf>,
 
+  /// File path to which a list of current compilation's dependencies will be
+  /// written. Use `-` to write to stdout.
+  pub deps: Option<Output>,
+
+  /// File format to use for dependencies.
+  pub deps_format: DepsFormat,
+
   /// Processing arguments.
   pub process: ProcessArgs,
 
   /// Opens the output file with the default viewer or a specific program
   /// after compilation. Ignored if output is stdout.
   pub open: Option<Option<String>>,
+
+  /// Produces performance timings of the compilation process. (experimental)
+  ///
+  /// The resulting JSON file can be loaded into a tracing tool such as
+  /// https://ui.perfetto.dev. It does not contain any sensitive information
+  /// apart from file names and line numbers.
+  pub timings: Option<Option<PathBuf>>,
 }
 
 /// Arguments for the construction of a world. Shared by compile, watch, and
@@ -180,6 +203,18 @@ pub enum OutputFormat {
   Html,
 }
 
+/// Which format to use for a generated dependency file.
+#[derive(Debug, Default, Copy, Clone, Eq, PartialEq)]
+pub enum DepsFormat {
+  /// Encodes as JSON, failing for non-Unicode paths.
+  #[default]
+  Json,
+  /// Separates paths with NULL bytes and can express all paths.
+  Zero,
+  /// Emits in Make format, omitting inexpressible paths.
+  Make,
+}
+
 /// Which format to use for diagnostics.
 #[derive(Debug, Default, Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
 pub enum DiagnosticFormat {
@@ -192,21 +227,50 @@ pub enum DiagnosticFormat {
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum Feature {
   Html,
+  A11yExtras,
 }
 
 /// A PDF standard that Typst can enforce conformance with.
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 #[allow(non_camel_case_types)]
 pub enum PdfStandard {
+  /// PDF 1.4.
+  V_1_4,
+  /// PDF 1.5.
+  V_1_5,
+  /// PDF 1.6.
+  V_1_6,
   /// PDF 1.7.
   V_1_7,
+  /// PDF 2.0.
+  V_2_0,
+  /// PDF/A-1b.
+  A_1b,
+  /// PDF/A-1a.
+  A_1a,
   /// PDF/A-2b.
   A_2b,
+  /// PDF/A-2u.
+  A_2u,
+  /// PDF/A-2a.
+  A_2a,
   /// PDF/A-3b.
   A_3b,
+  /// PDF/A-3u.
+  A_3u,
+  /// PDF/A-3a.
+  A_3a,
+  /// PDF/A-4.
+  A_4,
+  /// PDF/A-4f.
+  A_4f,
+  /// PDF/A-4e.
+  A_4e,
+  /// PDF/UA-1.
+  UA_1,
 }
 
-// Output file format for query command
+/// Output file format for query and info commands
 #[derive(Debug, Default, Copy, Clone, Eq, PartialEq)]
 pub enum SerializationFormat {
   #[default]
