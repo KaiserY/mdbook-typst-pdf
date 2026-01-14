@@ -6,10 +6,6 @@ mod package;
 mod terminal;
 mod world;
 
-use args::{
-  CompileArgs, DiagnosticFormat, FontArgs, Output, OutputFormat, PackageArgs, ProcessArgs,
-  WorldArgs,
-};
 use codespan_reporting::term::{self, termcolor};
 use mdbook_renderer::RenderContext;
 use mdbook_renderer::config::Config as MdConfig;
@@ -22,7 +18,10 @@ use tempfile::NamedTempFile;
 use termcolor::{ColorChoice, WriteColor};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
-use crate::args::{CompileCommand, Input};
+use crate::args::{
+  CompileArgs, CompileCommand, DepsFormat, DiagnosticFormat, FontArgs, Input, Output, OutputFormat,
+  PackageArgs, ProcessArgs, WorldArgs,
+};
 
 #[derive(Debug, Default, Serialize, Deserialize)]
 #[serde(default, rename_all = "kebab-case")]
@@ -91,14 +90,18 @@ fn main() -> Result<(), anyhow::Error> {
       },
       pages: None,
       pdf_standard: vec![],
+      no_pdf_tags: false,
       ppi: 0.0,
       make_deps: None,
+      deps: None,
+      deps_format: DepsFormat::Json,
       process: ProcessArgs {
         jobs: None,
         features: vec![],
         diagnostic_format: DiagnosticFormat::Human,
       },
       open: None,
+      timings: None,
     };
 
     let res = crate::export::export_pdf(&CompileCommand { args });

@@ -3,15 +3,14 @@ use codespan_reporting::diagnostic::{Diagnostic, Label};
 use codespan_reporting::term;
 use ecow::eco_format;
 use parking_lot::RwLock;
-use std::fs;
 use std::io::Write;
 use std::path::PathBuf;
 use typst::WorldExt;
 use typst::diag::{At, Severity, SourceDiagnostic, StrResult, Warned, bail};
 use typst::foundations::Datetime;
 use typst::foundations::Smart;
-use typst::layout::{Frame, PageRanges};
-use typst::syntax::{FileId, Source, Span};
+use typst::layout::{Frame, PageRanges, PagedDocument};
+use typst::syntax::{FileId, Lines, Span};
 use typst_pdf::{PdfOptions, PdfStandards, Timestamp};
 
 use crate::args::{
@@ -38,7 +37,7 @@ pub fn export_pdf(command: &CompileCommand) -> StrResult<()> {
 
   let start = std::time::Instant::now();
 
-  let Warned { output, warnings } = typst::compile(&world);
+  let Warned { output, warnings } = typst::compile::<PagedDocument>(&world);
 
   let result = output.and_then(|document| {
     let timestamp = match config.creation_timestamp {
@@ -56,6 +55,7 @@ pub fn export_pdf(command: &CompileCommand) -> StrResult<()> {
       timestamp,
       page_ranges: config.pages.clone(),
       standards: config.pdf_standards.clone(),
+      tagged: true,
     };
 
     let buffer = typst_pdf::pdf(&document, &options)?;
@@ -121,16 +121,10 @@ pub struct CompileConfig {
   pub export_cache: ExportCache,
 }
 
-#[allow(dead_code)]
 impl CompileConfig {
   /// Preprocess a `CompileCommand`, producing a compilation config.
   pub fn new(command: &CompileCommand) -> StrResult<Self> {
     Self::new_impl(&command.args, None)
-  }
-
-  /// Preprocess a `WatchCommand`, producing a compilation config.
-  pub fn watching(command: &WatchCommand) -> StrResult<Self> {
-    Self::new_impl(&command.args, Some(command))
   }
 
   /// The shared implementation of [`CompileConfig::new`] and
@@ -173,18 +167,14 @@ impl CompileConfig {
       .as_ref()
       .map(|export_ranges| PageRanges::new(export_ranges.iter().map(|r| r.0.clone()).collect()));
 
-    let pdf_standards = {
-      let list = args
+    let pdf_standards = PdfStandards::new(
+      &args
         .pdf_standard
         .iter()
-        .map(|standard| match standard {
-          PdfStandard::V_1_7 => typst_pdf::PdfStandard::V_1_7,
-          PdfStandard::A_2b => typst_pdf::PdfStandard::A_2b,
-          PdfStandard::A_3b => typst_pdf::PdfStandard::A_3b,
-        })
-        .collect::<Vec<_>>();
-      PdfStandards::new(&list)?
-    };
+        .copied()
+        .map(Into::into)
+        .collect::<Vec<_>>(),
+    )?;
 
     Ok(Self {
       watching: watch.is_some(),
@@ -282,7 +272,7 @@ pub fn print_diagnostics(
     )
     .with_labels(label(world, diagnostic.span).into_iter().collect());
 
-    term::emit(&mut terminal::out(), &config, world, &diag)?;
+    term::emit_to_io_write(&mut terminal::out(), &config, world, &diag)?;
 
     // Stacktrace-like helper diagnostics.
     for point in &diagnostic.trace {
@@ -291,7 +281,7 @@ pub fn print_diagnostics(
         .with_message(message)
         .with_labels(label(world, point.span).into_iter().collect());
 
-      term::emit(&mut terminal::out(), &config, world, &help)?;
+      term::emit_to_io_write(&mut terminal::out(), &config, world, &help)?;
     }
   }
 
@@ -306,7 +296,7 @@ fn label(world: &SystemWorld, span: Span) -> Option<Label<FileId>> {
 impl<'a> codespan_reporting::files::Files<'a> for SystemWorld {
   type FileId = FileId;
   type Name = String;
-  type Source = Source;
+  type Source = Lines<String>;
 
   fn name(&'a self, id: FileId) -> CodespanResult<Self::Name> {
     let vpath = id.vpath();
@@ -362,11 +352,35 @@ impl<'a> codespan_reporting::files::Files<'a> for SystemWorld {
 }
 
 impl Output {
-  fn write(&self, buffer: &[u8]) -> StrResult<()> {
+  /// Write data to the output.
+  pub fn write(&self, buffer: &[u8]) -> std::io::Result<()> {
     match self {
       Output::Stdout => std::io::stdout().write_all(buffer),
-      Output::Path(path) => fs::write(path, buffer),
+      Output::Path(path) => std::fs::write(path, buffer),
     }
-    .map_err(|err| eco_format!("{err}"))
+  }
+}
+
+impl From<PdfStandard> for typst_pdf::PdfStandard {
+  fn from(standard: PdfStandard) -> Self {
+    match standard {
+      PdfStandard::V_1_4 => typst_pdf::PdfStandard::V_1_4,
+      PdfStandard::V_1_5 => typst_pdf::PdfStandard::V_1_5,
+      PdfStandard::V_1_6 => typst_pdf::PdfStandard::V_1_6,
+      PdfStandard::V_1_7 => typst_pdf::PdfStandard::V_1_7,
+      PdfStandard::V_2_0 => typst_pdf::PdfStandard::V_2_0,
+      PdfStandard::A_1b => typst_pdf::PdfStandard::A_1b,
+      PdfStandard::A_1a => typst_pdf::PdfStandard::A_1a,
+      PdfStandard::A_2b => typst_pdf::PdfStandard::A_2b,
+      PdfStandard::A_2u => typst_pdf::PdfStandard::A_2u,
+      PdfStandard::A_2a => typst_pdf::PdfStandard::A_2a,
+      PdfStandard::A_3b => typst_pdf::PdfStandard::A_3b,
+      PdfStandard::A_3u => typst_pdf::PdfStandard::A_3u,
+      PdfStandard::A_3a => typst_pdf::PdfStandard::A_3a,
+      PdfStandard::A_4 => typst_pdf::PdfStandard::A_4,
+      PdfStandard::A_4f => typst_pdf::PdfStandard::A_4f,
+      PdfStandard::A_4e => typst_pdf::PdfStandard::A_4e,
+      PdfStandard::UA_1 => typst_pdf::PdfStandard::Ua_1,
+    }
   }
 }

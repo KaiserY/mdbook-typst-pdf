@@ -133,11 +133,6 @@ impl SystemWorld {
     })
   }
 
-  /// The id of the main source file.
-  pub fn main(&self) -> FileId {
-    self.main
-  }
-
   /// The root relative to which absolute paths are resolved.
   pub fn root(&self) -> &Path {
     &self.root
@@ -146,27 +141,6 @@ impl SystemWorld {
   /// The current working directory.
   pub fn workdir(&self) -> &Path {
     self.workdir.as_deref().unwrap_or(Path::new("."))
-  }
-
-  /// Return all paths the last compilation depended on.
-  pub fn dependencies(&mut self) -> impl Iterator<Item = PathBuf> + '_ {
-    self
-      .slots
-      .get_mut()
-      .values()
-      .filter(|slot| slot.accessed())
-      .filter_map(|slot| system_path(&self.root, slot.id, &self.package_storage).ok())
-  }
-
-  /// Reset the compilation state in preparation of a new compilation.
-  pub fn reset(&mut self) {
-    #[allow(clippy::iter_over_hash_type, reason = "order does not matter")]
-    for slot in self.slots.get_mut().values_mut() {
-      slot.reset();
-    }
-    if let Now::System(time_lock) = &mut self.now {
-      time_lock.take();
-    }
   }
 
   /// Lookup line metadata for a file by id.
@@ -269,18 +243,6 @@ impl FileSlot {
     }
   }
 
-  /// Whether the file was accessed in the ongoing compilation.
-  fn accessed(&self) -> bool {
-    self.source.accessed() || self.file.accessed()
-  }
-
-  /// Marks the file as not yet accessed in preparation of the next
-  /// compilation.
-  fn reset(&mut self) {
-    self.source.reset();
-    self.file.reset();
-  }
-
   /// Retrieve the source for this file.
   fn source(
     &mut self,
@@ -328,17 +290,6 @@ impl<T: Clone> SlotCell<T> {
       fingerprint: 0,
       accessed: false,
     }
-  }
-
-  /// Whether the cell was accessed in the ongoing compilation.
-  fn accessed(&self) -> bool {
-    self.accessed
-  }
-
-  /// Marks the cell as not yet accessed in preparation of the next
-  /// compilation.
-  fn reset(&mut self) {
-    self.accessed = false;
   }
 
   /// Gets the contents of the cell.

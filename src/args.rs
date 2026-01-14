@@ -18,12 +18,14 @@ pub struct CompileCommand {
   pub args: CompileArgs,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct WatchCommand {
   /// Arguments for compilation.
   pub args: CompileArgs,
 }
 
+#[allow(dead_code)]
 /// Arguments for compilation and watching.
 #[derive(Debug, Clone)]
 pub struct CompileArgs {
@@ -119,6 +121,7 @@ pub struct WorldArgs {
   pub creation_timestamp: Option<DateTime<Utc>>,
 }
 
+#[allow(dead_code)]
 /// Arguments for configuration the process of compilation itself.
 #[derive(Debug, Clone)]
 pub struct ProcessArgs {
@@ -158,6 +161,7 @@ pub struct FontArgs {
   pub ignore_system_fonts: bool,
 }
 
+#[allow(dead_code)]
 /// An input that is either stdin or a real path.
 #[derive(Debug, Clone)]
 pub enum Input {
@@ -176,6 +180,7 @@ impl Display for Input {
   }
 }
 
+#[allow(dead_code)]
 /// An output that is either stdout or a real path.
 #[derive(Debug, Clone)]
 pub enum Output {
@@ -203,6 +208,7 @@ pub enum OutputFormat {
   Html,
 }
 
+#[allow(dead_code)]
 /// Which format to use for a generated dependency file.
 #[derive(Debug, Default, Copy, Clone, Eq, PartialEq)]
 pub enum DepsFormat {
@@ -223,6 +229,7 @@ pub enum DiagnosticFormat {
   Short,
 }
 
+#[allow(dead_code)]
 /// An in-development feature that may be changed or removed at any time.
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum Feature {
@@ -268,14 +275,6 @@ pub enum PdfStandard {
   A_4e,
   /// PDF/UA-1.
   UA_1,
-}
-
-/// Output file format for query and info commands
-#[derive(Debug, Default, Copy, Clone, Eq, PartialEq)]
-pub enum SerializationFormat {
-  #[default]
-  Json,
-  Yaml,
 }
 
 /// Implements parsing of page ranges (`1-3`, `4`, `5-`, `-2`), used by the
@@ -325,28 +324,4 @@ fn parse_page_number(value: &str) -> Result<NonZeroUsize, &'static str> {
   } else {
     NonZeroUsize::from_str(value).map_err(|_| "not a valid page number")
   }
-}
-
-/// Parses key/value pairs split by the first equal sign.
-///
-/// This function will return an error if the argument contains no equals sign
-/// or contains the key (before the equals sign) is empty.
-fn parse_sys_input_pair(raw: &str) -> Result<(String, String), String> {
-  let (key, val) = raw
-    .split_once('=')
-    .ok_or("input must be a key and a value separated by an equal sign")?;
-  let key = key.trim().to_owned();
-  if key.is_empty() {
-    return Err("the key was missing or empty".to_owned());
-  }
-  let val = val.trim().to_owned();
-  Ok((key, val))
-}
-
-/// Parses a UNIX timestamp according to <https://reproducible-builds.org/specs/source-date-epoch/>
-fn parse_source_date_epoch(raw: &str) -> Result<DateTime<Utc>, String> {
-  let timestamp: i64 = raw
-    .parse()
-    .map_err(|err| format!("timestamp must be decimal integer ({err})"))?;
-  DateTime::from_timestamp(timestamp, 0).ok_or_else(|| "timestamp out of range".to_string())
 }

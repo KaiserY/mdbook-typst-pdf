@@ -34,18 +34,6 @@ pub struct TermOut {
 }
 
 impl TermOut {
-  /// Clears the entire screen.
-  pub fn clear_screen(&mut self) -> io::Result<()> {
-    // We don't want to clear anything that is not a TTY.
-    if self.inner.stream.supports_color() {
-      let mut stream = self.inner.stream.lock();
-      // Clear the screen and then move the cursor to the top left corner.
-      write!(stream, "\x1B[2J\x1B[1;1H")?;
-      stream.flush()?;
-    }
-    Ok(())
-  }
-
   /// Clears the previously written line.
   pub fn clear_last_line(&mut self) -> io::Result<()> {
     // We don't want to clear anything that is not a TTY.

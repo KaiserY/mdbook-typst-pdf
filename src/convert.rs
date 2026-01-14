@@ -393,43 +393,42 @@ fn convert_content(
           if html_children.len() > 1 {
             let body_children = &html_children[1].children.borrow();
 
-            if !body_children.is_empty() {
-              if let NodeData::Element { name, attrs, .. } = &body_children[0].data {
-                match name.local.as_ref() {
-                  "img" => {
-                    for attr in attrs.borrow().iter() {
-                      if attr.name.local.as_ref() == "src" {
-                        let attr_src_path = attr.value.to_string();
+            if !body_children.is_empty()
+              && let NodeData::Element { name, attrs, .. } = &body_children[0].data
+            {
+              match name.local.as_ref() {
+                "img" => {
+                  for attr in attrs.borrow().iter() {
+                    if attr.name.local.as_ref() == "src" {
+                      let attr_src_path = attr.value.to_string();
 
-                        let src_path = ctx
-                          .root
-                          .join(
-                            ctx
-                              .config
-                              .book
-                              .src
-                              .to_str()
-                              .ok_or(anyhow!("src not found"))?,
-                          )
-                          .join(&attr_src_path);
-                        let dest_path = ctx.destination.join(&attr_src_path);
+                      let src_path = ctx
+                        .root
+                        .join(
+                          ctx
+                            .config
+                            .book
+                            .src
+                            .to_str()
+                            .ok_or(anyhow!("src not found"))?,
+                        )
+                        .join(&attr_src_path);
+                      let dest_path = ctx.destination.join(&attr_src_path);
 
-                        let dest_dir =
-                          dest_path.parent().ok_or(anyhow!("destination not found"))?;
+                      let dest_dir = dest_path.parent().ok_or(anyhow!("destination not found"))?;
 
-                        fs::create_dir_all(dest_dir)?;
+                      fs::create_dir_all(dest_dir)?;
 
-                        if !dest_path.exists() {
-                          fs::copy(src_path, dest_path)?;
-                        }
-
-                        writeln!(content_str, "#figure(\n  image(\"{}\")\n)", attr_src_path)?
+                      if !dest_path.exists() {
+                        fs::copy(src_path, dest_path)?;
                       }
+
+                      writeln!(content_str, "#figure(\n  image(\"{}\")\n)", attr_src_path)?
                     }
                   }
-                  "span" => (),
-                  _ => (),
                 }
+                "span" => (),
+                _ => (),
               }
             }
           }
