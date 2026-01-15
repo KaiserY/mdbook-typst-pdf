@@ -28,6 +28,7 @@ custom-template = "template.typ" # filename for custom typst template for advanc
 section-number = true # true for generate chapter head numbering
 chapter-no-pagebreak = true # true for not add pagebreak after chapter
 rust-book = true # true for enabling rust book specific parsing
+enable-math = true # true for enabling math parsing
 ```
 
 ## Custom template

@@ -47,7 +47,7 @@ pub fn convert_typst(
     writeln!(typst_str, "{}", convert_book_item(ctx, cfg, item)?)?;
   }
 
-  let placeholder = "/**** MDBOOK_TYPST_PDF_PLACEHOLDER ****/\n";
+  let placeholder = "/**** MDBOOK_TYPST_PDF_PLACEHOLDER ****/";
   let target = output_template.find(placeholder).unwrap_or_default() + placeholder.len();
 
   output_template.insert_str(target, &typst_str);
@@ -100,11 +100,15 @@ fn convert_content(
 
   let mut writen_invisible_heading = false;
 
-  let options = Options::ENABLE_SMART_PUNCTUATION
+  let mut options = Options::ENABLE_SMART_PUNCTUATION
     | Options::ENABLE_STRIKETHROUGH
     | Options::ENABLE_FOOTNOTES
     | Options::ENABLE_TASKLISTS
     | Options::ENABLE_TABLES;
+
+  if cfg.enable_math {
+    options |= Options::ENABLE_MATH;
+  }
 
   let parser = Parser::new_ext(&ch.content, options);
 
@@ -170,10 +174,12 @@ fn convert_content(
           writen_invisible_heading = true;
         }
       }
-      Event::Start(Tag::Emphasis) => write!(content_str, "_")?,
-      Event::End(TagEnd::Emphasis) => write!(content_str, "_")?,
+      Event::Start(Tag::Emphasis) => write!(content_str, "#emph[")?,
+      Event::End(TagEnd::Emphasis) => write!(content_str, "]")?,
       Event::Start(Tag::Strong) => write!(content_str, "#strong[")?,
       Event::End(TagEnd::Strong) => write!(content_str, "]")?,
+      Event::Start(Tag::Strikethrough) => write!(content_str, "#strong[")?,
+      Event::End(TagEnd::Strikethrough) => write!(content_str, "]")?,
       Event::Start(Tag::BlockQuote(_)) => write!(content_str, "#quote(block: true)[")?,
       Event::End(TagEnd::BlockQuote(_)) => writeln!(content_str, "]")?,
       Event::Start(Tag::List(None)) => {
@@ -434,6 +440,8 @@ fn convert_content(
           }
         }
       }
+      Event::InlineMath(t) => writeln!(content_str, "${}$", t.trim())?,
+      Event::DisplayMath(t) => writeln!(content_str, "$  {}  $", t.trim())?,
       Event::Text(t) => {
         if event_stack.contains(&EventType::Heading) {
           heading.push_str(&t);

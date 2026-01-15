@@ -16,7 +16,7 @@ typst-kit = "0.14.2"
 typst-timing = "0.14.2"
 comrak = "0.49.0"
 codespan-reporting = "0.13.1"
-chrono = { version = "0.4.42", default-features = false, features = [
+chrono = { version = "0.4.43", default-features = false, features = [
   "clock",
   "std",
 ] }
@@ -34,7 +34,7 @@ serde = { version = "1.0.228", features = ["derive"] }
 anyhow = "1.0.100"
 pulldown-cmark = "0.13.0"
 markup5ever_rcdom = "0.36.0"
-html5ever = "0.36.0"
+html5ever = "0.36.1"
 regex = "1.12.2"
 rustc-hash = "2.1.1"
 parking_lot = "0.12.5"
