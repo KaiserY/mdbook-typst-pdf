@@ -6,6 +6,13 @@ A [mdBook](https://github.com/rust-lang/mdBook) backend for generate pdf (throug
 
 For now the primary use case is convert [Rust 程序设计语言 简体中文版](https://kaisery.github.io/trpl-zh-cn) to PDF. It should work for other mdbook project, if not welcome to fire an issue.
 
+## `mdBook` version
+
+|`mdbook-typst-pdf`|`mdBook`|
+|:-:|:-:|
+|`0.7.0`|`0.5.2`|
+|`0.6.3`|`0.4.51`|
+
 ## Installation
 
 - `cargo install mdbook-typst-pdf`
