@@ -10,6 +10,7 @@ use pulldown_cmark::{Alignment, CodeBlockKind, Event, Options, Parser, Tag, TagE
 use regex::Regex;
 use std::fmt::Write;
 use std::fs;
+use std::path::{Component, Path, PathBuf};
 use std::sync::OnceLock;
 
 use crate::Config;
@@ -24,6 +25,7 @@ pub enum EventType {
   NumberedList,
   TableHead,
   Image,
+  RemoteImage,
   Heading,
 }
 
@@ -106,6 +108,7 @@ fn convert_content(
     )
     .join(path)
   });
+  let chapter_rel_dir = label_path.parent();
 
   let mut heading = String::new();
 
@@ -211,19 +214,33 @@ fn convert_content(
       Event::Start(Tag::Paragraph) => (),
       Event::End(TagEnd::Paragraph) => write!(content_str, "\n\n")?,
       Event::Start(Tag::Link { dest_url, .. }) => {
-        if dest_url.starts_with("http://") || dest_url.starts_with("https://") {
-          write!(content_str, "#link(\"{}\")[", dest_url)?
-        } else if email_regex.is_match(&dest_url) {
-          write!(content_str, "#link(\"mailto:{}\")[", dest_url)?
-        } else if dest_url.starts_with('#') {
-          write!(
-            content_str,
-            "#link(<{}.html{}>)[",
-            label,
-            dest_url.replace('#', "-")
-          )?
+        if cfg.rust_book {
+          if dest_url.starts_with("http://") || dest_url.starts_with("https://") {
+            write!(content_str, "#link(\"{}\")[", dest_url)?
+          } else if email_regex.is_match(&dest_url) {
+            write!(content_str, "#link(\"mailto:{}\")[", dest_url)?
+          } else if dest_url.starts_with('#') {
+            write!(
+              content_str,
+              "#link(<{}.html{}>)[",
+              label,
+              dest_url.replace('#', "-")
+            )?
+          } else {
+            write!(content_str, "#link(<{}>)[", dest_url.replace('#', "-"))?
+          }
         } else {
-          write!(content_str, "#link(<{}>)[", dest_url.replace('#', "-"))?
+          if dest_url.starts_with("http://") || dest_url.starts_with("https://") {
+            write!(content_str, "#link(\"{}\")[", dest_url)?
+          } else if email_regex.is_match(&dest_url) {
+            write!(content_str, "#link(\"mailto:{}\")[", dest_url)?
+          } else {
+            write!(
+              content_str,
+              "#link(\"{}\")[",
+              normalize_relative_link(chapter_rel_dir, &dest_url)
+            )?
+          }
         }
       }
       Event::End(TagEnd::Link) => write!(content_str, "]")?,
@@ -258,12 +275,12 @@ fn convert_content(
       Event::Start(Tag::TableCell) => write!(content_str, "[")?,
       Event::End(TagEnd::TableCell) => writeln!(content_str, "],")?,
       Event::Start(Tag::Image { dest_url, .. }) => {
-        event_stack.push(EventType::Image);
-
         if dest_url.starts_with("http://") || dest_url.starts_with("https://") {
-          write!(content_str, "{}", dest_url)?;
+          event_stack.push(EventType::RemoteImage);
           continue;
         }
+
+        event_stack.push(EventType::Image);
 
         let src_path = ctx
           .root
@@ -301,9 +318,11 @@ fn convert_content(
         write!(content_str, "#figure(\n  image(\"{}\")\n)", dest_url)?
       }
       Event::End(TagEnd::Image) => {
-        event_stack.pop();
-
-        writeln!(content_str)?
+        match event_stack.pop() {
+          Some(EventType::Image) => writeln!(content_str)?,
+          Some(EventType::RemoteImage) => (),
+          _ => (),
+        }
       }
       Event::Start(Tag::CodeBlock(ref lang)) => match lang {
         CodeBlockKind::Indented => {
@@ -496,6 +515,20 @@ fn convert_content(
           }
           Some(EventType::TableHead) => write!(content_str, "*{}*", t)?,
           Some(EventType::Image) => write!(content_str, "/* {} */", t)?,
+          Some(EventType::RemoteImage) => {
+            let mut transformed_text = String::with_capacity(t.len());
+            for ch in t.chars() {
+              match ch {
+                '#' | '$' | '`' | '*' | '_' | '<' | '>' | '@' => {
+                  transformed_text.push('\\');
+                  transformed_text.push(ch);
+                }
+                _ => transformed_text.push(ch),
+              }
+            }
+
+            write!(content_str, "{}", transformed_text)?
+          }
           _ => {
             let mut transformed_text = String::with_capacity(t.len());
             for ch in t.chars() {
@@ -518,4 +551,56 @@ fn convert_content(
   }
 
   Ok(content_str)
+}
+
+fn normalize_relative_link(chapter_rel_dir: Option<&Path>, dest_url: &str) -> String {
+  let normalized = normalize_output_path(chapter_rel_dir, dest_url);
+  let normalized = normalized.to_string_lossy();
+
+  if let Some((path, fragment)) = dest_url.split_once('#') {
+    if path.ends_with(".md") {
+      let normalized_path = normalized_output_path_str(chapter_rel_dir, path);
+      format!("{}.html-{}", &normalized_path[..normalized_path.len() - 3], fragment)
+    } else {
+      format!("{}-{}", normalized, fragment)
+    }
+  } else if normalized.ends_with(".md") {
+    format!("{}.html", &normalized[..normalized.len() - 3])
+  } else {
+    normalized.into_owned()
+  }
+}
+
+fn normalize_output_path(chapter_rel_dir: Option<&Path>, target: &str) -> PathBuf {
+  let base = if Path::new(target).is_absolute() {
+    PathBuf::new()
+  } else {
+    chapter_rel_dir.map(Path::to_path_buf).unwrap_or_default()
+  };
+
+  normalize_join(base.join(target))
+}
+
+fn normalized_output_path_str(chapter_rel_dir: Option<&Path>, target: &str) -> String {
+  normalize_output_path(chapter_rel_dir, target)
+    .to_string_lossy()
+    .into_owned()
+}
+
+fn normalize_join(path: PathBuf) -> PathBuf {
+  let mut normalized = PathBuf::new();
+
+  for component in path.components() {
+    match component {
+      Component::CurDir => (),
+      Component::ParentDir => {
+        normalized.pop();
+      }
+      Component::Normal(part) => normalized.push(part),
+      Component::Prefix(prefix) => normalized.push(prefix.as_os_str()),
+      Component::RootDir => (),
+    }
+  }
+
+  normalized
 }
