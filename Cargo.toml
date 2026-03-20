@@ -14,7 +14,7 @@ typst = "0.14.2"
 typst-pdf = "0.14.2"
 typst-kit = "0.14.2"
 typst-timing = "0.14.2"
-comrak = "0.50.0"
+comrak = "0.51.0"
 codespan-reporting = "0.13.1"
 chrono = { version = "0.4.44", default-features = false, features = [
   "clock",
@@ -22,16 +22,16 @@ chrono = { version = "0.4.44", default-features = false, features = [
 ] }
 ecow = "0.2.6"
 tracing = "0.1.44"
-tracing-subscriber = { version = "0.3.22", features = ["env-filter"] }
+tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 ureq = { version = "3.2.0", default-features = false, features = [
   "gzip",
   "json",
 ] }
 pathdiff = "0.2.3"
-tempfile = "3.26.0"
+tempfile = "3.27.0"
 mdbook-renderer = "0.5.2"
 serde = { version = "1.0.228", features = ["derive"] }
-serde_json = "1.0.145"
+serde_json = "1.0.149"
 anyhow = "1.0.102"
 pulldown-cmark = "0.13.1"
 markup5ever_rcdom = "0.38.0"
@@ -39,7 +39,7 @@ html5ever = "0.38.0"
 regex = "1.12.3"
 rustc-hash = "2.1.1"
 parking_lot = "0.12.5"
-openssl = { version = "0.10.75", features = ["vendored"] }
+openssl = { version = "0.10.76", features = ["vendored"] }
 
 # The profile that 'cargo dist' will build with
 [profile.dist]

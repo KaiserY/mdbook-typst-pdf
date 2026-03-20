@@ -95,6 +95,17 @@ fn convert_content(
     .ok_or(anyhow!("label not found"))?;
 
   let mut content_str = String::new();
+  let chapter_dir = ch.source_path.as_ref().and_then(|path| path.parent()).map(|path| {
+    ctx.root.join(
+      ctx
+        .config
+        .book
+        .src
+        .to_str()
+        .expect("book src should be valid utf-8"),
+    )
+    .join(path)
+  });
 
   let mut heading = String::new();
 
@@ -249,6 +260,11 @@ fn convert_content(
       Event::Start(Tag::Image { dest_url, .. }) => {
         event_stack.push(EventType::Image);
 
+        if dest_url.starts_with("http://") || dest_url.starts_with("https://") {
+          write!(content_str, "{}", dest_url)?;
+          continue;
+        }
+
         let src_path = ctx
           .root
           .join(
@@ -260,6 +276,18 @@ fn convert_content(
               .ok_or(anyhow!("src not found"))?,
           )
           .join(dest_url.to_string());
+        let src_path = if src_path.exists() {
+          src_path
+        } else if let Some(chapter_dir) = &chapter_dir {
+          let chapter_src_path = chapter_dir.join(dest_url.to_string());
+          if chapter_src_path.exists() {
+            chapter_src_path
+          } else {
+            src_path
+          }
+        } else {
+          src_path
+        };
         let dest_path = ctx.destination.join(dest_url.to_string());
 
         let dest_dir = dest_path.parent().ok_or(anyhow!("destination not found"))?;
