@@ -305,7 +305,8 @@ fn convert_content(
         } else {
           src_path
         };
-        let dest_path = ctx.destination.join(dest_url.to_string());
+        let output_path = normalize_output_path(chapter_rel_dir, &dest_url);
+        let dest_path = ctx.destination.join(&output_path);
 
         let dest_dir = dest_path.parent().ok_or(anyhow!("destination not found"))?;
 
@@ -315,7 +316,11 @@ fn convert_content(
           fs::copy(src_path, dest_path)?;
         }
 
-        write!(content_str, "#figure(\n  image(\"{}\")\n)", dest_url)?
+        write!(
+          content_str,
+          "#figure(\n  image(\"{}\")\n)",
+          output_path.display()
+        )?
       }
       Event::End(TagEnd::Image) => {
         match event_stack.pop() {
@@ -415,7 +420,7 @@ fn convert_content(
 
         write!(
           content_str,
-          r#"#raw("{}")"#,
+          r#"#raw("{}")/**/"#,
           t.replace('\\', r#"\\"#).replace('"', r#"\""#)
         )?;
       }
