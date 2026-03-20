@@ -10,6 +10,7 @@ For now the primary use case is convert [Rust 程序设计语言 简体中文版
 
 |`mdbook-typst-pdf`|`mdBook`|
 |:-:|:-:|
+|`0.7.1`|`0.5.2`|
 |`0.7.0`|`0.5.2`|
 |`0.6.3`|`0.4.51`|
 
