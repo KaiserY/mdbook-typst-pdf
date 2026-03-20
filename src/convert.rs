@@ -189,11 +189,11 @@ fn convert_content(
         }
       }
       Event::Start(Tag::Emphasis) => write!(content_str, "#emph[")?,
-      Event::End(TagEnd::Emphasis) => write!(content_str, "]")?,
+      Event::End(TagEnd::Emphasis) => write!(content_str, "]/**/")?,
       Event::Start(Tag::Strong) => write!(content_str, "#strong[")?,
-      Event::End(TagEnd::Strong) => write!(content_str, "]")?,
+      Event::End(TagEnd::Strong) => write!(content_str, "]/**/")?,
       Event::Start(Tag::Strikethrough) => write!(content_str, "#strong[")?,
-      Event::End(TagEnd::Strikethrough) => write!(content_str, "]")?,
+      Event::End(TagEnd::Strikethrough) => write!(content_str, "]/**/")?,
       Event::Start(Tag::BlockQuote(_)) => write!(content_str, "#quote(block: true)[")?,
       Event::End(TagEnd::BlockQuote(_)) => writeln!(content_str, "]")?,
       Event::Start(Tag::List(None)) => {
@@ -492,8 +492,20 @@ fn convert_content(
           }
         }
       }
-      Event::InlineMath(t) => writeln!(content_str, "${}$", t.trim())?,
-      Event::DisplayMath(t) => writeln!(content_str, "$  {}  $", t.trim())?,
+      Event::InlineMath(t) => {
+        if looks_like_non_math(t.trim()) {
+          write!(content_str, "\\${}\\$", escape_typst_text(t.trim()))?;
+        } else {
+          writeln!(content_str, "${}$", t.trim())?;
+        }
+      }
+      Event::DisplayMath(t) => {
+        if looks_like_non_math(t.trim()) {
+          write!(content_str, "\\${}\\$", escape_typst_text(t.trim()))?;
+        } else {
+          writeln!(content_str, "$  {}  $", t.trim())?;
+        }
+      }
       Event::Text(t) => {
         if event_stack.contains(&EventType::Heading) {
           heading.push_str(&t);
@@ -556,6 +568,32 @@ fn convert_content(
   }
 
   Ok(content_str)
+}
+
+fn escape_typst_text(text: &str) -> String {
+  let mut transformed_text = String::with_capacity(text.len());
+  for ch in text.chars() {
+    match ch {
+      '#' | '$' | '`' | '*' | '_' | '<' | '>' | '@' => {
+        transformed_text.push('\\');
+        transformed_text.push(ch);
+      }
+      _ => transformed_text.push(ch),
+    }
+  }
+
+  transformed_text
+}
+
+fn looks_like_non_math(text: &str) -> bool {
+  text.contains('"')
+    || text.contains('\'')
+    || text.contains(';')
+    || text.contains("${")
+    || text.contains("sprintf")
+    || text.contains("file_name")
+    || text.contains("index)")
+    || text.contains("slide_time")
 }
 
 fn normalize_relative_link(chapter_rel_dir: Option<&Path>, dest_url: &str) -> String {
