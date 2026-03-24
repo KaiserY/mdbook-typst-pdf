@@ -1,6 +1,6 @@
 [package]
 name = "mdbook-typst-pdf"
-version = "0.7.1"
+version = "0.7.2"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/KaiserY/mdbook-typst-pdf"
@@ -12,7 +12,9 @@ keywords = ["mdbook", "typst", "pdf"]
 [dependencies]
 typst = "0.14.2"
 typst-pdf = "0.14.2"
-typst-kit = "0.14.2"
+typst-kit = { version = "0.14.2", default-features = false, features = [
+  "fonts",
+] }
 typst-timing = "0.14.2"
 comrak = "0.51.0"
 codespan-reporting = "0.13.1"
@@ -23,7 +25,7 @@ chrono = { version = "0.4.44", default-features = false, features = [
 ecow = "0.2.6"
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
-ureq = { version = "3.2.0", default-features = false, features = [
+ureq = { version = "3.3.0", default-features = false, features = [
   "gzip",
   "json",
 ] }
@@ -33,7 +35,7 @@ mdbook-renderer = "0.5.2"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.149"
 anyhow = "1.0.102"
-pulldown-cmark = "0.13.1"
+pulldown-cmark = "0.13.3"
 markup5ever_rcdom = "0.38.0"
 html5ever = "0.38.0"
 regex = "1.12.3"

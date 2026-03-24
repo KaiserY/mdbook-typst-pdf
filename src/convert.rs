@@ -97,17 +97,23 @@ fn convert_content(
     .ok_or(anyhow!("label not found"))?;
 
   let mut content_str = String::new();
-  let chapter_dir = ch.source_path.as_ref().and_then(|path| path.parent()).map(|path| {
-    ctx.root.join(
+  let chapter_dir = ch
+    .source_path
+    .as_ref()
+    .and_then(|path| path.parent())
+    .map(|path| {
       ctx
-        .config
-        .book
-        .src
-        .to_str()
-        .expect("book src should be valid utf-8"),
-    )
-    .join(path)
-  });
+        .root
+        .join(
+          ctx
+            .config
+            .book
+            .src
+            .to_str()
+            .expect("book src should be valid utf-8"),
+        )
+        .join(path)
+    });
   let chapter_rel_dir = label_path.parent();
 
   let mut heading = String::new();
@@ -322,13 +328,11 @@ fn convert_content(
           output_path.display()
         )?
       }
-      Event::End(TagEnd::Image) => {
-        match event_stack.pop() {
-          Some(EventType::Image) => writeln!(content_str)?,
-          Some(EventType::RemoteImage) => (),
-          _ => (),
-        }
-      }
+      Event::End(TagEnd::Image) => match event_stack.pop() {
+        Some(EventType::Image) => writeln!(content_str)?,
+        Some(EventType::RemoteImage) => (),
+        _ => (),
+      },
       Event::Start(Tag::CodeBlock(ref lang)) => match lang {
         CodeBlockKind::Indented => {
           event_stack.push(EventType::CodeBlockIndented);
@@ -514,18 +518,8 @@ fn convert_content(
         match event_stack.last() {
           Some(EventType::CodeBlockIndented) => write!(content_str, "{}", t)?,
           Some(EventType::CodeBlockFenced(_)) => {
-            if cfg.rust_book && t.lines().any(|line| line.starts_with("# ")) {
-              let mut filtered_t = t
-                .lines()
-                .filter(|line| !line.starts_with("# "))
-                .collect::<Vec<&str>>()
-                .join("\n");
-
-              if !filtered_t.ends_with('\n') {
-                filtered_t.push('\n');
-              }
-
-              write!(content_str, "{}", filtered_t)?
+            if cfg.rust_book {
+              write!(content_str, "{}", strip_rust_book_hidden_lines(&t))?
             } else {
               write!(content_str, "{}", t)?
             }
@@ -596,6 +590,32 @@ fn looks_like_non_math(text: &str) -> bool {
     || text.contains("slide_time")
 }
 
+fn strip_rust_book_hidden_lines(block: &str) -> String {
+  let mut output = String::with_capacity(block.len());
+
+  for line in block.split_inclusive('\n') {
+    let (line, newline) = match line.strip_suffix('\n') {
+      Some(line) => (line, "\n"),
+      None => (line, ""),
+    };
+
+    if line == "#" || line.starts_with("# ") {
+      continue;
+    }
+
+    if let Some(unescaped) = line.strip_prefix("##") {
+      output.push('#');
+      output.push_str(unescaped);
+    } else {
+      output.push_str(line);
+    }
+
+    output.push_str(newline);
+  }
+
+  output
+}
+
 fn normalize_relative_link(chapter_rel_dir: Option<&Path>, dest_url: &str) -> String {
   let normalized = normalize_output_path(chapter_rel_dir, dest_url);
   let normalized = normalized.to_string_lossy();
@@ -603,12 +623,16 @@ fn normalize_relative_link(chapter_rel_dir: Option<&Path>, dest_url: &str) -> St
   if let Some((path, fragment)) = dest_url.split_once('#') {
     if path.ends_with(".md") {
       let normalized_path = normalized_output_path_str(chapter_rel_dir, path);
-      format!("{}.html-{}", &normalized_path[..normalized_path.len() - 3], fragment)
+      format!(
+        "{}.html-{}",
+        &normalized_path[..normalized_path.len() - 3],
+        fragment
+      )
     } else {
       format!("{}-{}", normalized, fragment)
     }
-  } else if normalized.ends_with(".md") {
-    format!("{}.html", &normalized[..normalized.len() - 3])
+  } else if let Some(stripped) = normalized.strip_suffix(".md") {
+    format!("{stripped}.html")
   } else {
     normalized.into_owned()
   }
@@ -646,4 +670,25 @@ fn normalize_join(path: PathBuf) -> PathBuf {
   }
 
   normalized
+}
+
+#[cfg(test)]
+mod tests {
+  use super::strip_rust_book_hidden_lines;
+
+  #[test]
+  fn strips_hidden_rust_book_lines() {
+    let input = "# #[derive(Debug)]\n# struct Point;\n#\np1.distance(&p2);\n";
+    let expected = "p1.distance(&p2);\n";
+
+    assert_eq!(strip_rust_book_hidden_lines(input), expected);
+  }
+
+  #[test]
+  fn unescapes_visible_hash_lines() {
+    let input = "##[derive(Debug)]\n## heading\n";
+    let expected = "#[derive(Debug)]\n# heading\n";
+
+    assert_eq!(strip_rust_book_hidden_lines(input), expected);
+  }
 }

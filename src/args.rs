@@ -113,6 +113,7 @@ pub struct WorldArgs {
   pub font: FontArgs,
 
   /// Arguments related to storage of packages in the system.
+  #[allow(dead_code)]
   pub package: PackageArgs,
 
   /// The document's creation date formatted as a UNIX timestamp.
@@ -138,6 +139,7 @@ pub struct ProcessArgs {
 }
 
 /// Arguments related to where packages are stored in the system.
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct PackageArgs {
   /// Custom path to local packages, defaults to system-dependent location.

@@ -35,6 +35,7 @@ pub struct TermOut {
 
 impl TermOut {
   /// Clears the previously written line.
+  #[allow(dead_code)]
   pub fn clear_last_line(&mut self) -> io::Result<()> {
     // We don't want to clear anything that is not a TTY.
     if self.inner.stream.supports_color() {
