@@ -27,6 +27,7 @@ pub enum EventType {
   Image,
   RemoteImage,
   Heading,
+  Admonish(String, String),
 }
 
 pub fn convert_typst(
@@ -138,6 +139,7 @@ fn convert_content(
     .get_or_init(|| Regex::new(r"(?i)^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(.\w{2,3})+$").unwrap());
 
   let mut anchorizer = Anchorizer::new();
+  let mut admonish_body = String::new();
 
   for event in parser {
     match event {
@@ -340,6 +342,13 @@ fn convert_content(
           writeln!(content_str, "````")?
         }
         CodeBlockKind::Fenced(lang) => {
+          if lang.starts_with("admonish") {
+            let (admonish_type, title) = parse_admonish_info(lang);
+            event_stack.push(EventType::Admonish(admonish_type, title));
+            admonish_body.clear();
+            continue;
+          }
+
           event_stack.push(EventType::CodeBlockFenced(lang.to_string()));
 
           let langs: Vec<&str> = lang.split(',').collect();
@@ -364,6 +373,25 @@ fn convert_content(
       },
       Event::End(TagEnd::CodeBlock) => {
         match event_stack.last() {
+          Some(EventType::Admonish(admonish_type, title)) => {
+            let (fill, accent) = admonish_colors(admonish_type);
+            let body = markdown_to_typst(admonish_body.trim());
+
+            let title_display = if title.is_empty() {
+              capitalize(admonish_type)
+            } else {
+              escape_typst_text(title)
+            };
+
+            writeln!(
+              content_str,
+              "#block(\n  width: 100%,\n  fill: rgb(\"{}\"),\n  inset: 10pt,\n  radius: 4pt,\n  stroke: (left: 3pt + rgb(\"{}\")),\n)[\n  #text(fill: rgb(\"{}\"), weight: \"bold\")[{}]\n\n{}]",
+              fill, accent, accent, title_display, body.trim_end(),
+            )?;
+
+            event_stack.pop();
+            continue;
+          }
           Some(EventType::CodeBlockIndented) => writeln!(content_str, "````")?,
           Some(EventType::CodeBlockFenced(lang)) => {
             let langs: Vec<&str> = lang.split(',').collect();
@@ -516,6 +544,10 @@ fn convert_content(
         }
 
         match event_stack.last() {
+          Some(EventType::Admonish(_, _)) => {
+            admonish_body.push_str(&t);
+            continue;
+          }
           Some(EventType::CodeBlockIndented) => write!(content_str, "{}", t)?,
           Some(EventType::CodeBlockFenced(_)) => {
             if cfg.rust_book {
@@ -577,6 +609,92 @@ fn escape_typst_text(text: &str) -> String {
   }
 
   transformed_text
+}
+
+fn admonish_colors(admonish_type: &str) -> (&str, &str) {
+  match admonish_type {
+    "note" => ("#e8f4fd", "#448aff"),
+    "info" | "abstract" => ("#e0f7fa", "#00b8d4"),
+    "tip" => ("#e0f2f1", "#00bfa5"),
+    "success" | "question" => ("#e6f6e6", "#00c853"),
+    "warning" => ("#fff8e1", "#ff9100"),
+    "reference" => ("#fdf6e3", "#e8a317"),
+    "danger" | "failure" => ("#fde8e8", "#ff1744"),
+    "bug" => ("#fce4ec", "#f50057"),
+    "example" => ("#f3e5f5", "#7c4dff"),
+    "quote" => ("#f5f5f5", "#9e9e9e"),
+    _ => ("#f5f5f5", "#9e9e9e"),
+  }
+}
+
+fn parse_admonish_info(info: &str) -> (String, String) {
+  let without_prefix = info.strip_prefix("admonish").unwrap_or(info).trim();
+
+  let (admonish_type, rest) = match without_prefix.split_once(' ') {
+    Some((t, r)) => (t, r),
+    None => (without_prefix, ""),
+  };
+
+  let title = if let Some(after) = rest.strip_prefix("title=\"") {
+    after.strip_suffix('"').unwrap_or(after).to_string()
+  } else {
+    String::new()
+  };
+
+  (admonish_type.to_string(), title)
+}
+
+fn capitalize(s: &str) -> String {
+  let mut chars = s.chars();
+  match chars.next() {
+    None => String::new(),
+    Some(c) => c.to_uppercase().to_string() + chars.as_str(),
+  }
+}
+
+fn markdown_to_typst(markdown: &str) -> String {
+  let parser = Parser::new_ext(
+    markdown,
+    Options::ENABLE_SMART_PUNCTUATION
+      | Options::ENABLE_STRIKETHROUGH
+      | Options::ENABLE_TABLES,
+  );
+
+  let mut output = String::new();
+
+  for event in parser {
+    match event {
+      Event::Start(Tag::Paragraph) => (),
+      Event::End(TagEnd::Paragraph) => output.push_str("\n\n"),
+      Event::Start(Tag::Emphasis) => output.push_str("#emph["),
+      Event::End(TagEnd::Emphasis) => output.push_str("]/**/"),
+      Event::Start(Tag::Strong) => output.push_str("#strong["),
+      Event::End(TagEnd::Strong) => output.push_str("]/**/"),
+      Event::Start(Tag::Link { dest_url, .. }) => {
+        write!(output, "#link(\"{}\")[", dest_url).unwrap();
+      }
+      Event::End(TagEnd::Link) => output.push(']'),
+      Event::Start(Tag::List(None)) => (),
+      Event::Start(Tag::List(Some(_))) => (),
+      Event::End(TagEnd::List(_)) => (),
+      Event::Start(Tag::Item) => output.push_str("  - "),
+      Event::End(TagEnd::Item) => output.push('\n'),
+      Event::Code(t) => {
+        write!(
+          output,
+          r#"#raw("{}")/**/"#,
+          t.replace('\\', r#"\\"#).replace('"', r#"\""#)
+        )
+        .unwrap();
+      }
+      Event::Text(t) => output.push_str(&escape_typst_text(&t)),
+      Event::SoftBreak => output.push('\n'),
+      Event::HardBreak => output.push_str("\\\n"),
+      _ => (),
+    }
+  }
+
+  output
 }
 
 fn looks_like_non_math(text: &str) -> bool {
@@ -674,7 +792,7 @@ fn normalize_join(path: PathBuf) -> PathBuf {
 
 #[cfg(test)]
 mod tests {
-  use super::strip_rust_book_hidden_lines;
+  use super::*;
 
   #[test]
   fn strips_hidden_rust_book_lines() {
@@ -690,5 +808,72 @@ mod tests {
     let expected = "#[derive(Debug)]\n# heading\n";
 
     assert_eq!(strip_rust_book_hidden_lines(input), expected);
+  }
+
+  #[test]
+  fn test_admonish_colors() {
+    assert_eq!(admonish_colors("note"), ("#e8f4fd", "#448aff"));
+    assert_eq!(admonish_colors("info"), ("#e0f7fa", "#00b8d4"));
+    assert_eq!(admonish_colors("abstract"), ("#e0f7fa", "#00b8d4"));
+    assert_eq!(admonish_colors("tip"), ("#e0f2f1", "#00bfa5"));
+    assert_eq!(admonish_colors("success"), ("#e6f6e6", "#00c853"));
+    assert_eq!(admonish_colors("question"), ("#e6f6e6", "#00c853"));
+    assert_eq!(admonish_colors("warning"), ("#fff8e1", "#ff9100"));
+    assert_eq!(admonish_colors("reference"), ("#fdf6e3", "#e8a317"));
+    assert_eq!(admonish_colors("danger"), ("#fde8e8", "#ff1744"));
+    assert_eq!(admonish_colors("bug"), ("#fce4ec", "#f50057"));
+    assert_eq!(admonish_colors("failure"), ("#fde8e8", "#ff1744"));
+    assert_eq!(admonish_colors("example"), ("#f3e5f5", "#7c4dff"));
+    assert_eq!(admonish_colors("quote"), ("#f5f5f5", "#9e9e9e"));
+    assert_eq!(admonish_colors("custom"), ("#f5f5f5", "#9e9e9e"));
+  }
+
+  #[test]
+  fn test_parse_admonish_info_type_only() {
+    let (t, title) = parse_admonish_info("admonish tip");
+    assert_eq!(t, "tip");
+    assert_eq!(title, "");
+  }
+
+  #[test]
+  fn test_parse_admonish_info_with_title() {
+    let (t, title) = parse_admonish_info(r#"admonish reference title="Reading Assignment""#);
+    assert_eq!(t, "reference");
+    assert_eq!(title, "Reading Assignment");
+  }
+
+  #[test]
+  fn test_capitalize() {
+    assert_eq!(capitalize("tip"), "Tip");
+    assert_eq!(capitalize("warning"), "Warning");
+    assert_eq!(capitalize(""), "");
+  }
+
+  #[test]
+  fn test_markdown_to_typst_paragraph() {
+    let output = markdown_to_typst("Hello **world**");
+    assert!(output.contains("Hello"));
+    assert!(output.contains("#strong[world]"));
+  }
+
+  #[test]
+  fn test_markdown_to_typst_code() {
+    let output = markdown_to_typst("Use `foo()` here");
+    assert!(output.contains(r#"#raw("foo()")"#));
+    assert!(output.contains("Use"));
+    assert!(output.contains("here"));
+  }
+
+  #[test]
+  fn test_markdown_to_typst_link() {
+    let output = markdown_to_typst("[link](https://example.com)");
+    assert!(output.contains(r#"#link("https://example.com")[link]"#));
+  }
+
+  #[test]
+  fn test_markdown_to_typst_list() {
+    let output = markdown_to_typst("- one\n- two\n");
+    assert!(output.contains("- one"));
+    assert!(output.contains("- two"));
   }
 }
