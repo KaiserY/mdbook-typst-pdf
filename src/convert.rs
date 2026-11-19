@@ -140,6 +140,7 @@ fn convert_content(
 
   let mut anchorizer = Anchorizer::new();
   let mut admonish_body = String::new();
+  let mut code_body = String::new();
 
   for event in parser {
     match event {
@@ -338,8 +339,7 @@ fn convert_content(
       Event::Start(Tag::CodeBlock(ref lang)) => match lang {
         CodeBlockKind::Indented => {
           event_stack.push(EventType::CodeBlockIndented);
-
-          writeln!(content_str, "````")?
+          code_body.clear();
         }
         CodeBlockKind::Fenced(lang) => {
           if lang.starts_with("admonish") {
@@ -350,25 +350,7 @@ fn convert_content(
           }
 
           event_stack.push(EventType::CodeBlockFenced(lang.to_string()));
-
-          let langs: Vec<&str> = lang.split(',').collect();
-
-          if !langs.is_empty() {
-            let mut ferris_prefix = "".to_string();
-
-            for l in langs.iter().skip(1) {
-              match l {
-                &"does_not_compile" | &"not_desired_behavior" | &"panics" => {
-                  ferris_prefix = "#columns(1)[\n".to_string();
-                }
-                _ => (),
-              }
-            }
-
-            writeln!(content_str, "{}````{}", ferris_prefix, langs[0])?
-          } else {
-            writeln!(content_str, "````")?
-          }
+          code_body.clear();
         }
       },
       Event::End(TagEnd::CodeBlock) => {
@@ -392,53 +374,60 @@ fn convert_content(
             event_stack.pop();
             continue;
           }
-          Some(EventType::CodeBlockIndented) => writeln!(content_str, "````")?,
+          Some(EventType::CodeBlockIndented) => {
+            let fence = fence_for(&code_body);
+            writeln!(content_str, "{}", fence)?;
+            content_str.push_str(&code_body);
+            writeln!(content_str, "{}", fence)?;
+          }
           Some(EventType::CodeBlockFenced(lang)) => {
+            let fence = fence_for(&code_body);
             let langs: Vec<&str> = lang.split(',').collect();
+            let lang_label = langs.first().copied().unwrap_or("");
 
-            if !langs.is_empty() {
-              let mut ferris_suffix = "".to_string();
+            let mut ferris_prefix = String::new();
+            let mut ferris_suffix = String::new();
 
-              for l in langs.iter().skip(1) {
-                match l {
-                  &"does_not_compile" | &"not_desired_behavior" | &"panics" => {
-                    let ferris_src_path = format!("img/ferris/{}.svg", l);
+            for l in langs.iter().skip(1) {
+              match l {
+                &"does_not_compile" | &"not_desired_behavior" | &"panics" => {
+                  let ferris_src_path = format!("img/ferris/{}.svg", l);
 
-                    let src_path = ctx
-                      .root
-                      .join(
-                        ctx
-                          .config
-                          .book
-                          .src
-                          .to_str()
-                          .ok_or(anyhow!("src not found"))?,
-                      )
-                      .join(&ferris_src_path);
+                  let src_path = ctx
+                    .root
+                    .join(
+                      ctx
+                        .config
+                        .book
+                        .src
+                        .to_str()
+                        .ok_or(anyhow!("src not found"))?,
+                    )
+                    .join(&ferris_src_path);
 
-                    let dest_path = ctx.destination.join(&ferris_src_path);
+                  let dest_path = ctx.destination.join(&ferris_src_path);
 
-                    let dest_dir = dest_path.parent().ok_or(anyhow!("destination not found"))?;
+                  let dest_dir = dest_path.parent().ok_or(anyhow!("destination not found"))?;
 
-                    fs::create_dir_all(dest_dir)?;
+                  fs::create_dir_all(dest_dir)?;
 
-                    if !dest_path.exists() {
-                      fs::copy(src_path, dest_path)?;
-                    }
-
-                    ferris_suffix = format!(
-                      "\n#place(\n  top + right,\n  figure(\n    image(\"{}\", width: 10%)\n  )\n)\n]",
-                      ferris_src_path
-                    );
+                  if !dest_path.exists() {
+                    fs::copy(src_path, dest_path)?;
                   }
-                  _ => (),
-                }
-              }
 
-              writeln!(content_str, "````{}", ferris_suffix)?
-            } else {
-              writeln!(content_str, "````")?
+                  ferris_prefix = "#columns(1)[\n".to_string();
+                  ferris_suffix = format!(
+                    "\n#place(\n  top + right,\n  figure(\n    image(\"{}\", width: 10%)\n  )\n)\n]",
+                    ferris_src_path
+                  );
+                }
+                _ => (),
+              }
             }
+
+            writeln!(content_str, "{}{}{}", ferris_prefix, fence, lang_label)?;
+            content_str.push_str(&code_body);
+            writeln!(content_str, "{}{}", fence, ferris_suffix)?;
           }
           _ => writeln!(content_str, "````")?,
         }
@@ -548,12 +537,12 @@ fn convert_content(
             admonish_body.push_str(&t);
             continue;
           }
-          Some(EventType::CodeBlockIndented) => write!(content_str, "{}", t)?,
+          Some(EventType::CodeBlockIndented) => code_body.push_str(&t),
           Some(EventType::CodeBlockFenced(_)) => {
             if cfg.rust_book {
-              write!(content_str, "{}", strip_rust_book_hidden_lines(&t))?
+              code_body.push_str(&strip_rust_book_hidden_lines(&t))
             } else {
-              write!(content_str, "{}", t)?
+              code_body.push_str(&t)
             }
           }
           Some(EventType::TableHead) => write!(content_str, "*{}*", t)?,
@@ -594,6 +583,22 @@ fn convert_content(
   }
 
   Ok(content_str)
+}
+
+fn fence_for(body: &str) -> String {
+  let mut max_run = 0usize;
+  let mut current = 0usize;
+  for c in body.chars() {
+    if c == '`' {
+      current += 1;
+      if current > max_run {
+        max_run = current;
+      }
+    } else {
+      current = 0;
+    }
+  }
+  "`".repeat(max_run.max(2) + 1)
 }
 
 fn escape_typst_text(text: &str) -> String {
@@ -868,6 +873,33 @@ mod tests {
   fn test_markdown_to_typst_link() {
     let output = markdown_to_typst("[link](https://example.com)");
     assert!(output.contains(r#"#link("https://example.com")[link]"#));
+  }
+
+  #[test]
+  fn test_fence_for_no_backticks() {
+    assert_eq!(fence_for(""), "```");
+    assert_eq!(fence_for("plain text"), "```");
+  }
+
+  #[test]
+  fn test_fence_for_three_backticks() {
+    assert_eq!(fence_for("```rust\nfn main() {}\n```"), "````");
+  }
+
+  #[test]
+  fn test_fence_for_four_backticks() {
+    assert_eq!(fence_for(r#"let s = "````rust\nx\n````";"#), "`````");
+  }
+
+  #[test]
+  fn test_fence_for_five_backticks() {
+    assert_eq!(fence_for("`````"), "``````");
+  }
+
+  #[test]
+  fn test_fence_for_short_runs_still_use_minimum_three() {
+    assert_eq!(fence_for("`a` `b` `c`"), "```");
+    assert_eq!(fence_for("`` x `` `` y ``"), "```");
   }
 
   #[test]
